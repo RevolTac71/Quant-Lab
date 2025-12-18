@@ -143,8 +143,8 @@ def generate_with_rotation(prompt):
 
     return "분석 실패", "None"
 
-# [추가됨] 웹사이트용 마크다운 저장 함수
-def save_to_markdown(content):
+# 웹사이트용 마크다운 저장 함수
+def save_to_markdown(content,full_content):
     # 1. 폴더 생성 (data 폴더와 그 안에 archive 폴더까지)
     if not os.path.exists('data/archive'):
         os.makedirs('data/archive')
@@ -159,7 +159,7 @@ def save_to_markdown(content):
     archive_path = f"data/archive/{today_str}_report.md"
     
     with open(archive_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        f.write(full_content)
 
     print(f"✅ 저장 완료: daily_report.md 및 {today_str}_report.md")
 
@@ -233,7 +233,7 @@ if __name__ == "__main__":
 * (내용)
 
 [텍스트]:
-{pdf_text[:20000]}
+{pdf_text[:30000]}
 """
                 insight, model_used = generate_with_rotation(prompt)
 
@@ -245,14 +245,12 @@ if __name__ == "__main__":
             else:
                 pass
 
-        # (위쪽 코드는 동일...)
         if collected_insights:
             print(f"\n🎉 총 {success_count}건 성공! 종합 분석 중...")
             
             # 1. 개별 요약본들을 하나의 문자열로 합치기
             all_summaries_text = "\n\n---\n".join(collected_insights)
             
-            # --- [핵심] 최종 종합 리포트 생성 프롬프트 ---
             # (프롬프트에는 요약본을 보여주기만 하고, 출력 포맷에는 포함하지 않음)
             final_prompt = f"""
 당신은 수석 애널리스트입니다. 
@@ -282,14 +280,14 @@ if __name__ == "__main__":
 ## 4. Risk Assessment
 * (하방 위험 요인)
 """
-            # 2. AI에게 종합 분석(1~4번)만 시킴
+            # 2. AI에게 종합 분석
             final_insight, final_model = generate_with_rotation(final_prompt)
             
-            # 3. AI의 '종합 분석' 뒤에 개별 리포트 요약을 수동으로 붙임
+            # 3. AI의 종합 분석 뒤에 개별 리포트 요약을 수동으로 붙임
             final_report_content = f"{final_insight}\n\n---\n## 📚 Individual Report Summaries\n(아래 내용은 개별 리포트의 요약입니다)\n\n{all_summaries_text}"
 
-            # 4. 저장 및 전송
-            save_to_markdown(final_report_content)
+            # 4. 저장 및 전송(웹사이트에는 최종 요약본만, 메일 및 DB에는 개별 리포트 포함)
+            save_to_markdown(final_insight,final_report_content)
             send_email(f"[Quant-Lab] {SEARCH_KEYWORD} 종합 리포트", final_report_content)
             
             print("\n✅ 모든 작업 완료!")
