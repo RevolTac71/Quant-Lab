@@ -31,7 +31,8 @@ jobs:
           SEARCH_ENGINE_ID: ${{ secrets.SEARCH_ENGINE_ID }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PWD: ${{ secrets.GMAIL_APP_PWD }}
-        run: python report_generator.py
+          RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
+        run: python ReportGenerator.py
 
       - name: Commit and Push Report
         run: |
@@ -39,4 +40,18 @@ jobs:
           git config --global user.email 'bot@noreply.github.com'
           git add data/daily_report.md
           git commit -m "Update daily report [skip ci]" || echo "No changes to commit"
+          git push
+          
+      - name: Update Exchange Rates
+        env:
+          EXIM_KEY: ${{ secrets.EXIM_KEY }}
+        run: python update_rates.py
+      
+      # (커밋 부분은 하나로 퉁쳐도 됩니다)
+      - name: Commit and Push Data
+        run: |
+          git config --global user.name 'Seunggyu-AI-Bot'
+          git config --global user.email 'bot@noreply.github.com'
+          git add data/
+          git commit -m "Update Daily Data (Report + Exchange Rate)" || echo "No changes to commit"
           git push
