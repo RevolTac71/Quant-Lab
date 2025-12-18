@@ -17,18 +17,23 @@ GMAIL_USER = os.environ.get("GMAIL_USER")
 GMAIL_APP_PWD = os.environ.get("GMAIL_APP_PWD")
 
 # 수신자 목록 (본인 이메일 등)
-RECEIVER_EMAILS = ["ksmsk0701@gmail.com"] 
+emails_env = os.environ.get("RECEIVER_EMAILS", "")
+if emails_env:
+    # 쉼표(,) 기준으로 자르고, 혹시 모를 공백(띄어쓰기) 제거
+    RECEIVER_EMAILS = [e.strip() for e in emails_env.split(",") if e.strip()]
+else:
+    print("⚠️ 경고: 수신자 이메일 설정이 없습니다.")
+    RECEIVER_EMAILS = [] # 빈 리스트
 
 genai.configure(api_key=GEMINI_API_KEY)
-AVAILABLE_MODELS = ["models/gemini-1.5-flash"] # 최신 모델명으로 고정 추천
+AVAILABLE_MODELS = ["models/gemini-2.5-flash-lite"]
 
 TARGET_SITES = ["blackrock.com", "jpmorgan.com", "morganstanley.com", "mckinsey.com", "worldbank.org"]
 SEARCH_KEYWORD = "Infrastructure Outlook"
 
 def search_and_extract():
-    # (기존 검색 로직 유지하되 간소화)
     site_query = " OR ".join([f"site:{site}" for site in TARGET_SITES])
-    final_query = f"{SEARCH_KEYWORD} filetype:pdf after:2024-01-01 ({site_query})" # 날짜 필터 강화
+    final_query = f"{SEARCH_KEYWORD} filetype:pdf after:2024-01-01 ({site_query})"
     
     url = "https://www.googleapis.com/customsearch/v1"
     params = {'key': GOOGLE_SEARCH_API_KEY, 'cx': SEARCH_ENGINE_ID, 'q': final_query, 'num': 3}
