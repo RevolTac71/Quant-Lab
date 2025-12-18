@@ -22,7 +22,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install google-generativeai requests pypdf
+          pip install google-generativeai requests pypdf pandas numpy
 
       - name: Run Report Generator
         env:
