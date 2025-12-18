@@ -31,7 +31,7 @@ jobs:
           SEARCH_ENGINE_ID: ${{ secrets.SEARCH_ENGINE_ID }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PWD: ${{ secrets.GMAIL_APP_PWD }}
-        run: python report_generator.py
+        run: python ReportGenerator.py
 
       - name: Commit and Push Report
         run: |
