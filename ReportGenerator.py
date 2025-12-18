@@ -67,8 +67,8 @@ def search_pdf_reports(keyword, sites):
         'key': GOOGLE_SEARCH_API_KEY,
         'cx': SEARCH_ENGINE_ID,
         'q': final_query,
-        'num': 5, # 검색 개수 조절
-        'dateRestrict': 'w1' # 최근 1개월
+        'num': 10, # 검색 개수 조절
+        'dateRestrict': 'w1' 
     }
     try:
         response = requests.get(url, params=params).json()
@@ -283,10 +283,10 @@ if __name__ == "__main__":
             
             final_report_content = final_insight # 웹사이트 및 메일 본문용
 
-            # 1. 웹사이트용 파일 저장 (승규님 요청 기능 추가)
+            # 1. 웹사이트용 파일 저장
             save_to_markdown(final_report_content)
 
-            # 2. 이메일 전송 (기존 기능 유지)
+            # 2. 이메일 전송
             send_email(f"[Quant-Lab] {SEARCH_KEYWORD} 종합 리포트", final_report_content)
             
             print("\n✅ 모든 작업 완료!")
