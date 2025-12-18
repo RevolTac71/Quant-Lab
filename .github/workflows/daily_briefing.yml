@@ -47,7 +47,6 @@ jobs:
           EXIM_KEY: ${{ secrets.EXIM_KEY }}
         run: python update_rates.py
       
-      # (커밋 부분은 하나로 퉁쳐도 됩니다)
       - name: Commit and Push Data
         run: |
           git config --global user.name 'Seunggyu-AI-Bot'

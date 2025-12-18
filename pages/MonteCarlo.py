@@ -8,11 +8,23 @@ import os
 
 # 환율 데이터 수집 (CSV에서 읽기)
 @st.cache_data(ttl=3600)
+# [수정 전]
+# csv_path = "data/exchange_rates.csv"  <-- 이렇게 쓰면 pages 폴더 안에서 data를 찾으려 해서 에러남
+
+# [수정 후] 절대 경로 계산 로직 적용
+@st.cache_data(ttl=3600)
 def get_exchange_data_from_csv(start_date, end_date):
-    csv_path = "data/exchange_rates.csv"
+    # 1. 현재 파일(MonteCarlo.py)의 절대 경로를 구함
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 2. 상위 폴더(루트)로 한 칸 올라감 (pages -> root)
+    root_dir = os.path.dirname(current_dir)
+    
+    # 3. 루트에서 data/exchange_rates.csv 경로를 만듦
+    csv_path = os.path.join(root_dir, "data", "exchange_rates.csv")
     
     if not os.path.exists(csv_path):
-        # 파일이 없을 경우 (아직 봇이 한 번도 안 돌았거나, 초기 데이터가 없을 때)
+        st.error(f"❌ 데이터 파일을 찾을 수 없습니다.\n경로: {csv_path}")
         return pd.DataFrame()
     
     try:
