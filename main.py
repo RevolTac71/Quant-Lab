@@ -44,7 +44,6 @@ def send_subscription_alert(new_email):
 
 
 st.title("💸 AI 퀀트 투자 연구소")
-st.markdown("### Data-Driven Investment Insights powered by Gemini")
 
 st.divider()
 
@@ -92,7 +91,6 @@ st.divider()
 st.caption("⚠️ **Disclaimer**: 본 서비스는 모의 투자 및 연구 목적으로 제작되었으며, 실제 투자에 대한 법적 책임을 지지 않습니다. 모든 데이터는 실시간이 아닐 수 있습니다.")
 
 with st.sidebar:
-    st.markdown("---") # 구분선
     st.caption("☕ **개발자에게 커피 한 잔 쏘기**")
     
     buymeacoffee_url = "https://www.buymeacoffee.com/revoltac"
@@ -107,4 +105,4 @@ with st.sidebar:
         """,
         unsafe_allow_html=True
     )
-    st.caption("서버 비용과 개발에 큰 힘이 됩니다! 🚀")
+    st.caption("서버 비용과 개발에 큰 힘이 됩니다!")

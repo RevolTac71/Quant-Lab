@@ -92,7 +92,7 @@ with st.container():
         # 사이드바 대신 여기서 입력 가능
         main_ticker = st.text_input("종목 코드 입력", placeholder="예: TSLA, 005930.KS", label_visibility="collapsed")
     with col_search2:
-        main_search_btn = st.button("분석 Go")
+        main_search_btn = st.button("분석")
 
 st.markdown("""
 <small>
@@ -104,13 +104,13 @@ st.markdown("""
 st.warning("⚠️ **전제:** 우상향할 수 있는 신뢰할 수 있는 우량주 기준입니다.")
 st.divider()
 
-# 사이드바 (기존 방식 유지)
+# 사이드바 
 with st.sidebar:
     st.header("🔍 설정")
     sidebar_ticker = st.text_input("티커 (사이드바)", value="TSLA").upper()
     sidebar_btn = st.button("분석 실행 (사이드바)")
 
-# 실행 로직 (메인 버튼 or 사이드바 버튼)
+# 실행 로직 
 target_ticker = None
 if main_search_btn and main_ticker:
     target_ticker = main_ticker.upper()
