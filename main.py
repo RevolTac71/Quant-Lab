@@ -105,4 +105,6 @@ with st.sidebar:
         """,
         unsafe_allow_html=True
     )
+    st.caption("👇 토스/은행 계좌 복사 (클릭)")
+    st.code("국민은행 93930201202028", language="text")
     st.caption("서버 비용과 개발에 큰 힘이 됩니다!")
