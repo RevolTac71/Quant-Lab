@@ -53,8 +53,7 @@ def unsubscribe_user(email):
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
-        # 파일명 확인 ("QuantLab_Subscribers" 또는 "QuantLab Subscribers" - 본인 시트명에 맞게!)
-        sheet = client.open("QuantLab_Subscribers").sheet1
+        sheet = client.open("QuantLab Subscribers").sheet1
         
         cell = sheet.find(email)
         
@@ -81,8 +80,7 @@ def save_to_google_sheet(email):
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
-        # 파일명 확인 ("QuantLab_Subscribers" 또는 "QuantLab Subscribers")
-        sheet = client.open("QuantLab_Subscribers").sheet1
+        sheet = client.open("QuantLab Subscribers").sheet1
         
         try:
             rows = sheet.get_all_values()
