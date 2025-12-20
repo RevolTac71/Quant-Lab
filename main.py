@@ -76,7 +76,7 @@ def save_to_google_sheet(email):
     try:
         # 1. 인증 및 연결
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        creds_dict = st.secrets["gcp_service_account"] 
+        creds_dict = st.secrets["GCP_SERVICE_ACCOUNT"] 
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
