@@ -74,27 +74,57 @@ def unsubscribe_user(email):
     
 def save_to_google_sheet(email):
     try:
-        # 1. 인증 정보 가져오기 (Secrets에서)
+        # 1. 인증 및 연결
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         creds_dict = st.secrets["gcp_service_account"] 
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
-        # 2. 시트 열기 (파일 이름 정확해야 함!)
-        sheet = client.open("QuantLab Subscribers").sheet1
-
-        # 3. 데이터 준비
-        start_date = datetime.now().strftime("%Y-%m-%d")
-        end_date = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d") # 1년 구독
-        reg_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # 4. 행 추가 (이메일, 시작일, 종료일, 등록시간)
-        sheet.append_row([email, start_date, end_date, reg_time])
-        return True
+        sheet = client.open("QuantLab_Subscribers").sheet1
         
+        # 2. 모든 데이터 가져오기 (API 호출 최소화)
+        data = sheet.get_all_records()
+        
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        # 3. 상태 확인 로직
+        is_active = False # 현재 구독 중인지?
+        has_history = False # 과거 기록이 있는지?
+        
+        for row in data:
+            # 이메일 비교 (공백 제거 후 비교)
+            row_email = str(row.get('email')).strip()
+            if row_email == email:
+                has_history = True
+                
+                # 취소 날짜(canceled_at)와 만료일(end_date) 확인
+                canceled_at = str(row.get('canceled_at')).strip()
+                end_date = str(row.get('end_date')).strip()
+                
+                # [중복 조건] 취소 안 했고("") + 아직 만료 안 됐으면 -> 구독 중
+                if canceled_at == "" and end_date >= today:
+                    is_active = True
+                    break # 하나라도 활성 상태면 루프 종료
+
+        # 4. 결과 처리
+        if is_active:
+            return "duplicate" # 이미 구독 중
+        else:
+            # 과거 기록이 있어도 덮어쓰지 않고 새로 추가합니다.
+            next_year = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
+            now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # [email, start, end, reg_at, canceled_at]
+            sheet.append_row([email, today, next_year, now_time, ""])
+            
+            if has_history:
+                return "resubscribed" # 재구독 (새 줄 추가됨)
+            else:
+                return "success" # 신규 구독
+
     except Exception as e:
-        st.error(f"구글 시트 저장 오류: {e}")
-        return False    
+        st.error(f"시스템 오류: {e}")
+        return "error"
     
 # ---------------------------------------------------------
 
@@ -139,12 +169,23 @@ with col2:
             sub_btn = st.form_submit_button("구독하기")
             
             if sub_btn:
-                # (기존 구독 로직 그대로)
                 if "@" not in sub_email:
                     st.warning("올바른 이메일을 입력해주세요.")
                 else:
-                    save_to_google_sheet(sub_email)
-                    st.success(f"환영합니다! '{sub_email}' 구독 완료.")
+                    with st.spinner("확인 중..."):
+                        clean_email = sub_email.strip()
+                        result = save_to_google_sheet(clean_email)
+                        
+                        if result == "success":
+                            st.balloons()
+                            st.success(f"🎉 환영합니다! '{clean_email}' 님, 구독 리스트에 등록되었습니다.")
+                        elif result == "duplicate":
+                            st.warning(f"😅 '{clean_email}' 님은 현재 구독 중입니다.")
+                        elif result == "resubscribed":
+                            st.balloons()
+                            st.info(f"👋 다시 돌아오셨군요! '{clean_email}' 님의 구독이 새로 시작됩니다.")
+                        else:
+                            st.error("오류가 발생했습니다.")
 
     # 2. 구독 취소 탭 
     with tab_unsub:
