@@ -80,7 +80,7 @@ def save_to_google_sheet(email):
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
-        sheet = client.open("QuantLab_Subscribers").sheet1
+        sheet = client.open("QuantLab Subscribers").sheet1
         
         # 2. 기존 데이터 가져오기 (중복 검사용)
         try:
