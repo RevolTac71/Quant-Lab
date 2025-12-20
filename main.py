@@ -82,35 +82,37 @@ def save_to_google_sheet(email):
 
         sheet = client.open("QuantLab_Subscribers").sheet1
         
-        # 2. 모든 데이터 가져오기 (API 호출 최소화)
-        data = sheet.get_all_records()
+        # 2. 모든 데이터 가져오기 (리스트 형태라 에러 안 남!)
+        rows = sheet.get_all_values()
         
         today = datetime.now().strftime("%Y-%m-%d")
         
         # 3. 상태 확인 로직
-        is_active = False # 현재 구독 중인지?
-        has_history = False # 과거 기록이 있는지?
+        is_active = False 
+        has_history = False 
         
-        for row in data:
-            # 이메일 비교 (공백 제거 후 비교)
-            row_email = str(row.get('email')).strip()
-            if row_email == email:
-                has_history = True
+        # 데이터가 헤더(1줄)만 있거나 아예 없으면 반복문 건너뜀
+        if len(rows) > 1:
+            for row in rows[1:]: # 헤더 제외하고 2번째 줄부터 확인
+                # row[0]: 이메일, row[2]: 종료일, row[4]: 취소일
+                # 인덱스 에러 방지를 위한 안전한 가져오기
+                current_email = row[0].strip() if len(row) > 0 else ""
                 
-                # 취소 날짜(canceled_at)와 만료일(end_date) 확인
-                canceled_at = str(row.get('canceled_at')).strip()
-                end_date = str(row.get('end_date')).strip()
-                
-                # [중복 조건] 취소 안 했고("") + 아직 만료 안 됐으면 -> 구독 중
-                if canceled_at == "" and end_date >= today:
-                    is_active = True
-                    break # 하나라도 활성 상태면 루프 종료
+                if current_email == email:
+                    has_history = True
+                    
+                    end_date = row[2].strip() if len(row) > 2 else ""
+                    canceled_at = row[4].strip() if len(row) > 4 else ""
+                    
+                    # [중복 조건] 취소 안 했고("") + 만료 안 됐으면 -> 구독 중
+                    if canceled_at == "" and end_date >= today:
+                        is_active = True
+                        break 
 
         # 4. 결과 처리
         if is_active:
-            return "duplicate" # 이미 구독 중
+            return "duplicate"
         else:
-            # 과거 기록이 있어도 덮어쓰지 않고 새로 추가합니다.
             next_year = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
@@ -118,9 +120,9 @@ def save_to_google_sheet(email):
             sheet.append_row([email, today, next_year, now_time, ""])
             
             if has_history:
-                return "resubscribed" # 재구독 (새 줄 추가됨)
+                return "resubscribed"
             else:
-                return "success" # 신규 구독
+                return "success"
 
     except Exception as e:
         st.error(f"시스템 오류: {e}")
