@@ -82,7 +82,7 @@ def save_to_google_sheet(email):
 
         sheet = client.open("QuantLab_Subscribers").sheet1
         
-        # 2. 모든 데이터 가져오기 (리스트 형태라 에러 안 남!)
+        # 2. 전체 데이터 가져오기
         rows = sheet.get_all_values()
         
         today = datetime.now().strftime("%Y-%m-%d")
@@ -91,33 +91,38 @@ def save_to_google_sheet(email):
         is_active = False 
         has_history = False 
         
-        # 데이터가 헤더(1줄)만 있거나 아예 없으면 반복문 건너뜀
+        # 헤더가 있든 없든 안전하게 처리
         if len(rows) > 1:
-            for row in rows[1:]: # 헤더 제외하고 2번째 줄부터 확인
-                # row[0]: 이메일, row[2]: 종료일, row[4]: 취소일
-                # 인덱스 에러 방지를 위한 안전한 가져오기
+            for row in rows[1:]:
+                # 안전하게 값 가져오기
                 current_email = row[0].strip() if len(row) > 0 else ""
                 
                 if current_email == email:
                     has_history = True
-                    
                     end_date = row[2].strip() if len(row) > 2 else ""
                     canceled_at = row[4].strip() if len(row) > 4 else ""
                     
-                    # [중복 조건] 취소 안 했고("") + 만료 안 됐으면 -> 구독 중
+                    # [중복 조건] 취소 안 함 + 만료 안 됨
                     if canceled_at == "" and end_date >= today:
                         is_active = True
                         break 
 
-        # 4. 결과 처리
+        # 4. 결과 처리 및 데이터 입력
         if is_active:
             return "duplicate"
         else:
+            # [수정된 부분] append_row 대신 빈 줄을 찾아서 직접 입력
+            next_row = len(rows) + 1  # 데이터 개수 + 1이 다음 빈 줄 번호
+            
             next_year = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            # [email, start, end, reg_at, canceled_at]
-            sheet.append_row([email, today, next_year, now_time, ""])
+            # 한 칸씩 직접 입력 (이 방식은 에러가 안 납니다!)
+            sheet.update_cell(next_row, 1, email)       # A열: 이메일
+            sheet.update_cell(next_row, 2, today)       # B열: 시작일
+            sheet.update_cell(next_row, 3, next_year)   # C열: 종료일
+            sheet.update_cell(next_row, 4, now_time)    # D열: 등록일시
+            sheet.update_cell(next_row, 5, "")          # E열: 취소일(공백)
             
             if has_history:
                 return "resubscribed"
