@@ -74,69 +74,62 @@ def unsubscribe_user(email):
     
 def save_to_google_sheet(email):
     try:
-        # 1. 인증 및 연결
+        # 1. 인증 및 시트 연결
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         creds_dict = st.secrets["gcp_service_account"] 
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
-        # 파일명 확인
         sheet = client.open("QuantLab_Subscribers").sheet1
         
-        # 2. 모든 데이터 가져오기 (에러 방지용 안전 장치)
+        # 2. 기존 데이터 가져오기 (중복 검사용)
         try:
             rows = sheet.get_all_values()
         except:
-            rows = [] 
+            rows = []
         
         today = datetime.now().strftime("%Y-%m-%d")
         
-        # 3. 상태 확인 로직
-        is_active = False 
-        has_history = False 
+        # 3. 중복 여부 확인
+        # (이미 구독 중인 경우: 이메일 같음 + 취소일 없음 + 만료일 남음)
+        is_active_subscriber = False
         
-        if len(rows) > 1:
-            for row in rows[1:]: # 헤더 건너뛰기
-                # 안전하게 데이터 가져오기 (인덱스 에러 방지)
-                # 순서: 0:email, 1:start, 2:end, 3:register, 4:cancel
+        if len(rows) > 1: # 헤더 외에 데이터가 있을 때만 검사
+            for row in rows[1:]:
+                # 데이터 안전하게 가져오기 (인덱스 에러 방지)
+                r_email = row[0].strip() if len(row) > 0 else ""
+                r_end_date = row[2].strip() if len(row) > 2 else ""
+                r_cancel_time = row[4].strip() if len(row) > 4 else "" # 5번째 열(E열)이 취소일
                 
-                row_email = row[0].strip() if len(row) > 0 else ""
-                
-                if row_email == email:
-                    has_history = True
-                    
-                    # [수정됨] 알려주신 필드 순서에 맞춤
-                    end_date = row[2].strip() if len(row) > 2 else ""      # end_date
-                    cancel_time = row[4].strip() if len(row) > 4 else ""   # cancel_time (E열)
-                    
-                    # [중복 조건] 취소 안 함(공백) + 만료 안 됨 -> 구독 중
-                    if cancel_time == "" and end_date >= today:
-                        is_active = True
-                        break 
+                # 이메일이 같고
+                if r_email == email:
+                    # 취소하지 않았으며("") + 아직 기간이 남았다면
+                    if r_cancel_time == "" and r_end_date >= today:
+                        is_active_subscriber = True
+                        break # 이미 구독 중인거 확인했으니 탐색 종료
 
-        # 4. 저장 실행
-        if is_active:
-            return "duplicate"
+        # 4. 결과에 따른 처리
+        if is_active_subscriber:
+            return "duplicate" # UI에서 경고 메시지 띄우기 위해 반환
+            
         else:
-            # 날짜 계산
+            # [핵심] append_row 대신 빈 줄을 계산해서 직접 입력 (에러 해결책)
+            next_row = len(rows) + 1 
+            
             next_year = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            # [데이터 입력] append_row 사용
-            # 순서: email, start, end, register_time, cancel_time(공백)
-            sheet.append_row([email, today, next_year, now_time, ""])
+            # 한 땀 한 땀 직접 입력 (가장 확실한 방법)
+            sheet.update_cell(next_row, 1, email)       # A열: Email
+            sheet.update_cell(next_row, 2, today)       # B열: Start_Date
+            sheet.update_cell(next_row, 3, next_year)   # C열: End_Date
+            sheet.update_cell(next_row, 4, now_time)    # D열: Register_Time
+            sheet.update_cell(next_row, 5, "")          # E열: Cancel_Time (비워둠)
             
-            if has_history:
-                return "resubscribed"
-            else:
-                return "success"
-
+            return "success"
+        
     except Exception as e:
-        # [안전 장치] <Response [200]> 에러는 '성공'으로 간주
-        if "200" in str(e):
-            return "success" if not has_history else "resubscribed"
-            
-        st.error(f"시스템 오류: {e}")
+        st.error(f"상세 에러 내용: {str(e)}")
         return "error"
     
 # ---------------------------------------------------------
