@@ -31,34 +31,39 @@ def get_active_subscribers():
     json_str = os.environ.get("GCP_SERVICE_ACCOUNT_JSON")
     
     if not json_str:
-        print("⚠️ 경고: GCP_SERVICE_ACCOUNT_JSON 시크릿이 없습니다. (기본 환경변수 이메일만 사용)")
+        print("⚠️ 경고: GCP_SERVICE_ACCOUNT_JSON 시크릿이 없습니다.")
         return []
 
     try:
         # 2. 인증 및 시트 연결
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        creds_dict = json.loads(json_str) # 문자열을 딕셔너리로 변환
+        creds_dict = json.loads(json_str) 
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
-        # 3. 시트 열기
-        sheet = client.open("구독자 리스트").sheet1
-        data = sheet.get_all_records() # 모든 데이터를 딕셔너리 리스트로 가져옴
+        # 파일명 정확히 입력
+        sheet = client.open("QuantLab_Subscribers").sheet1
+        data = sheet.get_all_records()
         
         active_emails = []
-        today = datetime.now().strftime("%Y-%m-%d") # 오늘 날짜 (YYYY-MM-DD)
+        today = datetime.now().strftime("%Y-%m-%d")
 
-        # 4. 필터링 로직 (만료일 체크)
         for row in data:
-            email = row.get('email')
+            email = row.get('email')        
             end_date = row.get('end_date')
+            canceled_at = row.get('canceled_at') 
+
+            # 취소 날짜가 비어있는지 확인 (비어있으면 True)
+            is_canceled = str(canceled_at).strip() != ""
             
-            # 날짜 형식이 맞고, 만료일이 오늘보다 같거나 미래인 경우만 추가
-            if email and end_date:
+            # 이메일 존재 + 만료 안 됨 + 취소 안 함
+            if email and end_date and not is_canceled:
                 if end_date >= today:
                     active_emails.append(email)
                 else:
-                    print(f"  🚫 만료된 구독자 제외: {email} (만료일: {end_date})")
+                    print(f"  🚫 만료된 구독자 제외: {email}")
+            elif is_canceled:
+                print(f"  👋 구독 취소자(발송 제외): {email}")
         
         print(f"✅ 활성 구독자 {len(active_emails)}명 추출 완료.")
         return active_emails
@@ -354,8 +359,16 @@ if __name__ == "__main__":
             # 2. AI에게 종합 분석
             final_insight, final_model = generate_with_rotation(final_prompt)
             
+            footer = """
+\n\n
+--------------------------------------------------
+* 본 메일은 Quant Lab 구독 서비스의 일환으로 발송되었습니다.
+* 수신을 원치 않으시면 웹사이트의 [구독 취소] 탭을 이용해주세요.
+--------------------------------------------------
+"""
+            
             # 3. AI의 종합 분석 뒤에 개별 리포트 요약을 수동으로 붙임
-            final_report_content = f"{final_insight}\n\n---\n## 📚 Individual Report Summaries\n(아래 내용은 개별 리포트의 요약입니다)\n\n{all_summaries_text}"
+            final_report_content = f"{final_insight}\n\n---\n## 📚 Individual Report Summaries\n(아래 내용은 개별 리포트의 요약입니다)\n\n{all_summaries_text} {footer}"
 
             # 4. 저장 및 전송(웹사이트에는 최종 요약본만, 메일 및 DB에는 개별 리포트 포함)
             save_to_markdown(final_insight,final_report_content)
