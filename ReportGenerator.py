@@ -8,6 +8,9 @@ from pypdf import PdfReader
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, timezone
+import json
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials 
 
 # ==========================================
 # 1. 환경 변수 및 설정 (GitHub Secrets 연동)
@@ -21,13 +24,63 @@ GMAIL_USER = os.environ.get("GMAIL_USER")
 GMAIL_APP_PWD = os.environ.get("GMAIL_APP_PWD")
 
 # 수신자 목록
-emails_env = os.environ.get("RECEIVER_EMAILS", "")
-if emails_env:
-    # 쉼표(,) 기준으로 자르고, 혹시 모를 공백(띄어쓰기) 제거
-    RECEIVER_EMAILS = [e.strip() for e in emails_env.split(",") if e.strip()]
-else:
-    print("⚠️ 경고: 수신자 이메일 설정이 없습니다.")
-    RECEIVER_EMAILS = [] # 빈 리스트
+def get_active_subscribers():
+    print("📋 구독자 명단 확인 중...")
+    
+    # 1. GitHub Secrets에서 JSON 키 가져오기
+    json_str = os.environ.get("GCP_SERVICE_ACCOUNT_JSON")
+    
+    if not json_str:
+        print("⚠️ 경고: GCP_SERVICE_ACCOUNT_JSON 시크릿이 없습니다. (기본 환경변수 이메일만 사용)")
+        return []
+
+    try:
+        # 2. 인증 및 시트 연결
+        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        creds_dict = json.loads(json_str) # 문자열을 딕셔너리로 변환
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        client = gspread.authorize(creds)
+
+        # 3. 시트 열기
+        sheet = client.open("구독자 리스트").sheet1
+        data = sheet.get_all_records() # 모든 데이터를 딕셔너리 리스트로 가져옴
+        
+        active_emails = []
+        today = datetime.now().strftime("%Y-%m-%d") # 오늘 날짜 (YYYY-MM-DD)
+
+        # 4. 필터링 로직 (만료일 체크)
+        for row in data:
+            email = row.get('email')
+            end_date = row.get('end_date')
+            
+            # 날짜 형식이 맞고, 만료일이 오늘보다 같거나 미래인 경우만 추가
+            if email and end_date:
+                if end_date >= today:
+                    active_emails.append(email)
+                else:
+                    print(f"  🚫 만료된 구독자 제외: {email} (만료일: {end_date})")
+        
+        print(f"✅ 활성 구독자 {len(active_emails)}명 추출 완료.")
+        return active_emails
+
+    except Exception as e:
+        print(f"❌ 구글 시트 읽기 실패: {e}")
+        return []
+
+# -----------------------------------------------------------
+# 수신자 목록 통합 (환경변수 + 구글시트)
+# -----------------------------------------------------------
+# 1. 환경변수에 등록된 관리자 이메일 (테스트용)
+env_emails = os.environ.get("RECEIVER_EMAILS", "")
+admin_list = [e.strip() for e in env_emails.split(",") if e.strip()]
+
+# 2. 구글 시트에서 가져온 구독자 이메일
+subscriber_list = get_active_subscribers()
+
+# 3. 중복 제거 및 최종 리스트 생성
+RECEIVER_EMAILS = list(set(admin_list + subscriber_list))
+
+print(f"📩 최종 발송 대상: {len(RECEIVER_EMAILS)}명")
 
 AVAILABLE_MODELS = [
     "models/gemini-2.5-flash",
