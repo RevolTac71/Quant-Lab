@@ -348,6 +348,7 @@ if __name__ == "__main__":
 
 [출력 형식 (Markdown)]
 # 🌍 Global Market Synthesis Report ({get_kst_now().strftime('%Y-%m-%d')})
+* (사용된 리포트들의 출처(기관명))
 
 ## 1. Executive Summary
 * (핵심 메시지 한 문장)
