@@ -19,15 +19,15 @@ from supabase import create_client
 try:
     # 1. 로컬 개발 환경 (.streamlit/secrets.toml)
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    secrets_path = os.path.join(current_dir, ".streamlit", "secrets.toml")
+    secrets_path = "C:/Y/Study/Projects/StockAnalysis/.streamlit/secrets.toml"
     
     if os.path.exists(secrets_path):
         secrets = toml.load(secrets_path)
         SUPABASE_URL = secrets["supabase"]["SUPABASE_URL"]
         SUPABASE_KEY = secrets["supabase"]["SUPABASE_KEY"]
-        GEMINI_API_KEY = secrets.get("google", {}).get("api_key") or os.environ.get("GEMINI_API_KEY")
-        GOOGLE_SEARCH_API_KEY = secrets.get("google", {}).get("search_key") or os.environ.get("GOOGLE_SEARCH_API_KEY")
-        SEARCH_ENGINE_ID = secrets.get("google", {}).get("search_engine_id") or os.environ.get("SEARCH_ENGINE_ID")
+        GEMINI_API_KEY = secrets.get("google", {}).get("GEMINI_API_KEY")
+        GOOGLE_SEARCH_API_KEY = secrets.get("google", {}).get("GOOGLE_SEARCH_API_KEY")
+        SEARCH_ENGINE_ID = secrets.get("google", {}).get("SEARCH_ENGINE_ID") 
         GMAIL_USER = secrets["GMAIL"]["GMAIL_USER"]
         GMAIL_APP_PWD = secrets["GMAIL"]["GMAIL_APP_PWD"]
     else:
