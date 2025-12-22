@@ -9,3 +9,6 @@ pypdf
 pandas_ta
 gspread>=6.0.0
 oauth2client
+supabase
+beautifulsoup4
+toml
