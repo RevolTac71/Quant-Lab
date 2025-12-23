@@ -2,7 +2,7 @@ import streamlit as st
 import smtplib
 from email.mime.text import MIMEText
 from supabase import create_client
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # ---------------------------------------------------------
 # 1. 초기 설정 및 DB 연결
@@ -78,10 +78,12 @@ def send_subscription_alert(new_email):
 
 def subscribe_user_to_db(email, language='ko'):
     try:
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        KST = timezone(timedelta(hours=9))
+
+        now_kst = datetime.now(KST)
+
+        current_date = now_kst.strftime("%Y-%m-%d")
         
-        # [수정] register_time, cancel_time 삭제
-        # 순수하게 '구독 기간' 정보만 남김
         data = {
             "email": email, 
             "is_active": True, 
@@ -109,8 +111,10 @@ def unsubscribe_user_from_db(email):
         if not check.data:
             return "not_found"
 
-        # 2. Subscribers 테이블 갱신
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        KST = timezone(timedelta(hours=9))
+        now_kst = datetime.now(KST)
+        
+        current_date = now_kst.strftime("%Y-%m-%d")
 
         # [수정] cancel_time 삭제
         supabase.table("subscribers").update({
