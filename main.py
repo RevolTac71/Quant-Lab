@@ -93,7 +93,7 @@ def subscribe_user_to_db(email, language='ko'):
         }
         
         # upsert: 있으면 수정(재구독), 없으면 추가
-        supabase.table("subscribers").upsert(data).execute()
+        supabase.table("subscribers").upsert(data, on_conflict='email').execute()
         
         # 로그 기록 (여기에 정확한 시간이 찍힘)
         log_action(email, 'SUBSCRIBE')
