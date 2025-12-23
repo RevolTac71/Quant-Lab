@@ -203,10 +203,11 @@ def send_email_batch(subject, body, receivers):
     if not receivers: return
     
     msg = MIMEMultipart()
-    msg['From'] = GMAIL_USER
+    sender_name = "RevolTac" 
+    msg['From'] = f"{sender_name} <{GMAIL_USER}>"
     msg['Subject'] = subject
     msg['Bcc'] = ", ".join(receivers) 
-    msg.attach(MIMEText(body, 'plain')) # 텍스트 모드
+    msg.attach(MIMEText(body, 'plain'))
 
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
