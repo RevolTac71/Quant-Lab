@@ -89,7 +89,6 @@ def subscribe_user_to_db(email, language='ko'):
             "is_active": True, 
             "language": language,
             "start_date": current_date, 
-            "end_date": None
         }
         
         # upsert: 있으면 수정(재구독), 없으면 추가

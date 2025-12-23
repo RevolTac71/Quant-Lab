@@ -112,7 +112,7 @@ def extract_text_fast(url):
         return None
 
 def generate_synthesis(summaries_text, lang='ko'):
-    model = genai.GenerativeModel('gemini-1.5-flash') 
+    model = genai.GenerativeModel('gemini-2.5-flash') 
     
     # [수정] 날짜를 KST 기준으로 생성
     today_kst = datetime.now(KST).strftime('%Y-%m-%d')
@@ -180,7 +180,6 @@ def send_email_batch(subject, body, receivers):
     if not receivers: return
     
     msg = MIMEMultipart()
-    # [설정] 봇 이름 적용
     sender_name = "RevolTac" 
     msg['From'] = f"{sender_name} <{GMAIL_USER}>"
     msg['Subject'] = subject
@@ -203,23 +202,16 @@ def send_email_batch(subject, body, receivers):
 if __name__ == "__main__":
     print("🚀 QuantLab Daily Job 시작...")
     
-    # 1. 리포트 검색 (지금은 테스트용 가짜 데이터, 내일 API 한도 풀리면 search_pdf_reports 주석 해제)
-    # reports = search_pdf_reports(SEARCH_KEYWORD, TARGET_SITES)
-    
-    reports = [
-        {'title': 'Goldman Sachs 2025 Outlook', 'link': 'https://test.com/gs'},
-        {'title': 'BlackRock Investment Trends', 'link': 'https://test.com/br'}
-    ]
+    reports = search_pdf_reports(SEARCH_KEYWORD, TARGET_SITES)
     
     structured_summaries = [] 
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     
     # 2. 개별 리포트 요약
     for report in reports:
         print(f"Processing: {report['title']}...")
         
-        text = f"The market is showing strong signals in AI and Infrastructure sectors. Investors should focus on data centers and renewable energy. Projected growth is 15% YoY. ({report['title']})"
-        # text = extract_text_fast(report['link']) # 실제 사용 시 주석 해제
+        text = extract_text_fast(report['link'])
         
         if text:
             try:
@@ -274,11 +266,11 @@ if __name__ == "__main__":
         final_ko = generate_synthesis(all_text_en, 'ko')
         final_en = generate_synthesis(all_text_en, 'en')
         
-        # [수정] 날짜를 KST 기준으로 생성
+        # 날짜를 KST 기준으로 생성
         today_kst_str = datetime.now(KST).strftime('%Y-%m-%d')
         today_kst_md = datetime.now(KST).strftime('%m/%d')
         
-        # DB 저장 (종합)
+        # DB 저장 
         db_data = {
             "title": f"Global Market Synthesis ({today_kst_str})",
             "link": "Combined Sources",
