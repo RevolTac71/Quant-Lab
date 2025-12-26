@@ -273,7 +273,6 @@ if __name__ == "__main__":
         # DB 저장 
         db_data = {
             "title": f"Global Market Synthesis ({today_kst_str})",
-            "link": "Combined Sources",
             "summary_ko": final_ko,
             "summary_en": final_en
         }
