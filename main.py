@@ -156,7 +156,6 @@ with col1:
                 summary_text = latest_report.get('summary_en', 'English summary not available.')
                 
                 st.markdown(summary_text)
-            st.caption(f"🔗 [원본 리포트 보러가기]({latest_report['link']})")
             
         else:
             st.warning("아직 생성된 리포트가 없습니다. (DB가 비어있음)")
