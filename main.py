@@ -155,7 +155,7 @@ with col1:
             else:
                 summary_text = latest_report.get('summary_en', 'English summary not available.')
                 
-                st.markdown(summary_text)
+            st.markdown(summary_text)
             
         else:
             st.warning("아직 생성된 리포트가 없습니다. (DB가 비어있음)")
