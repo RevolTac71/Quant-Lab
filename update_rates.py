@@ -1,85 +1,114 @@
-import pandas as pd
-import requests
 import os
-from datetime import datetime, timedelta
+import requests
+import toml
+from datetime import datetime, timedelta, timezone
+from supabase import create_client
 
-# GitHub Secrets에서 키 가져오기
-AUTH_KEY = os.environ.get("EXIM_KEY")
-DATA_PATH = "data/exchange_rates.csv"
+# 1. 환경 설정
+KST = timezone(timedelta(hours=9))
 
-def fetch_today_rate():
-    target_date = datetime.now()
-    search_date_str = target_date.strftime("%Y%m%d")
-    display_date = target_date.strftime("%Y-%m-%d")
+try:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    secrets_path = os.path.join(current_dir, ".streamlit", "secrets.toml")
     
+    if os.path.exists(secrets_path): # 로컬
+        secrets = toml.load(secrets_path)
+        SUPABASE_URL = secrets["supabase"]["SUPABASE_URL"]
+        SUPABASE_KEY = secrets["supabase"]["SUPABASE_KEY"]
+        AUTH_KEY = secrets.get("exim", {}).get("EXIM_KEY")
+    else: # GitHub Actions
+        SUPABASE_URL = os.environ.get("SUPABASE_URL")
+        SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+        AUTH_KEY = os.environ.get("EXIM_KEY")
+
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    print(f"❌ 설정 로드 실패: {e}")
+    exit()
+
+# 2. 기능 함수
+def fetch_today_rate_api(target_date):
+    search_date_str = target_date.strftime("%Y%m%d")
     url = "https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON"
-    params = {
-        "authkey": AUTH_KEY,
-        "searchdate": search_date_str,
-        "data": "AP01"
-    }
+    params = {"authkey": AUTH_KEY, "searchdate": search_date_str, "data": "AP01"}
     
     try:
-        # 타임아웃 5초 설정 (응답 없으면 빨리 끊기)
-        response = requests.get(url, params=params, timeout=5)
+        response = requests.get(url, params=params, timeout=10)
         
-        if response.status_code == 200 and response.json():
+        if response.status_code != 200:
+            print(f"⚠️ 서버 응답 코드 에러: {response.status_code}")
+            return "ERROR"
+
+        try:
             json_data = response.json()
-            for item in json_data:
-                if item['cur_unit'] == "USD":
-                    rate = float(item['deal_bas_r'].replace(",", ""))
-                    return {"Date": display_date, "USD_KRW": rate}
-                    
+        except:
+            return "ERROR"
+        
+        if not json_data:
+            return None 
+
+        for item in json_data:
+            if item['cur_unit'] == "USD":
+                return float(item['deal_bas_r'].replace(",", ""))
+                
     except Exception as e:
-        print(f"⚠️ API 호출 중 에러 (휴일일 수 있음): {e}")
+        print(f"⚠️ 연결/로직 에러: {e}")
+        return "ERROR"
     
     return None
 
-def update_csv():
-    # 1. 기존 파일 읽기 (없으면 빈 DataFrame 생성)
-    if os.path.exists(DATA_PATH):
-        df = pd.read_csv(DATA_PATH)
-    else:
-        df = pd.DataFrame(columns=["Date", "USD_KRW"])
-    
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    
-    # 2. 이미 오늘 데이터가 있는지 확인 (중복 방지)
-    if today_str in df['Date'].values:
-        print(f"ℹ️ {today_str} 데이터는 이미 존재합니다.")
-        return
+def get_latest_rate_from_db():
+    try:
+        response = supabase.table("exchange_rates").select("*").order("date", desc=True).limit(1).execute()
+        if response.data: return response.data[0]
+    except Exception as e:
+        print(f"❌ DB 조회 실패: {e}")
+    return None
 
-    # 3. 오늘 데이터 가져오기 시도
-    new_data = fetch_today_rate()
+def save_to_db(date_str, rate):
+    try:
+        data = {"date": date_str, "usd_krw": rate}
+        supabase.table("exchange_rates").upsert(data).execute()
+        print(f"💾 DB 저장 완료: {date_str} - {rate}원")
+    except Exception as e:
+        print(f"❌ DB 저장 실패: {e}")
+
+# 3. 메인 로직 
+def update_exchange_rate():
+    now_kst = datetime.now(KST)
+    today_str = now_kst.strftime("%Y-%m-%d")
     
-    if new_data:
-        # [CASE 1] 평일: API 데이터가 정상적으로 있음
-        print(f"✅ 오늘 환율 확보: {new_data}")
-        new_row = pd.DataFrame([new_data])
-        df = pd.concat([df, new_row], ignore_index=True)
-        
-    else:
-        # [CASE 2] 휴일/주말: API 데이터가 없음 -> '직전 데이터' 복사
-        print("❌ 오늘은 환율 데이터가 없습니다 (휴일/주말). 직전 데이터를 불러옵니다.")
-        
-        if not df.empty:
-            last_rate = df.iloc[-1]['USD_KRW'] # 가장 마지막 행의 환율 가져오기
-            print(f"🔄 직전 환율({last_rate})로 오늘({today_str}) 데이터를 채웁니다.")
-            
-            fill_data = {"Date": today_str, "USD_KRW": last_rate}
-            new_row = pd.DataFrame([fill_data])
-            df = pd.concat([df, new_row], ignore_index=True)
-        else:
-            print("⚠️ 기존 데이터가 하나도 없어 채울 수 없습니다.")
+    print(f"📅 [환율 작업 시작] {today_str}")
+
+    # 1. 중복 확인
+    try:
+        check = supabase.table("exchange_rates").select("date").eq("date", today_str).execute()
+        if check.data:
+            print(f"ℹ️ {today_str} 환율은 이미 DB에 있습니다. 종료합니다.")
             return
+    except:
+        pass
 
-    # 4. 저장
-    df.to_csv(DATA_PATH, index=False)
-    print("💾 CSV 업데이트 완료")
+    # 2. API 호출
+    rate = fetch_today_rate_api(now_kst)
+
+    if isinstance(rate, float):
+        print(f"✅ 오늘 환율 조회 성공: {rate}원")
+        save_to_db(today_str, rate)
+
+    elif rate == "ERROR":
+        print("🚫 API 서버 오류. 작업을 중단합니다.")
+
+    else:
+        print("💤 데이터가 없습니다(주말 또는 공휴일). 직전 데이터를 복사합니다.")
+        
+        latest_data = get_latest_rate_from_db()
+        if latest_data:
+            last_rate = latest_data['usd_krw']
+            print(f"🔄 직전 데이터({latest_data['date']})인 {last_rate}원을 오늘 날짜로 저장합니다.")
+            save_to_db(today_str, last_rate)
+        else:
+            print("⚠️ 복사할 이전 데이터가 없습니다.")
 
 if __name__ == "__main__":
-    # 데이터 폴더가 없으면 생성
-    if not os.path.exists('data'):
-        os.makedirs('data')
-        
-    update_csv()
+    update_exchange_rate()
