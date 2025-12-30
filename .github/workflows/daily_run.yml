@@ -35,16 +35,3 @@ jobs:
         GMAIL_APP_PWD: ${{ secrets.GMAIL_APP_PWD }}
       run: |
         python daily_job.py
-    
-    - name: Update Exchange Rates
-      env:
-        EXIM_KEY: ${{ secrets.EXIM_KEY }}
-      run: python update_rates.py
-    
-    - name: Commit and Push Data
-      run: |
-        git config --global user.name 'Seunggyu-AI-Bot'
-        git config --global user.email 'bot@noreply.github.com'
-        git add data/
-        git commit -m "Update Daily Data (Report + Exchange Rate)" || echo "No changes to commit"
-        git push
