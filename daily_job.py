@@ -118,7 +118,6 @@ def generate_synthesis(summaries_text, lang='ko'):
     today_kst = datetime.now(KST).strftime('%Y-%m-%d')
     
     if lang == 'en':
-        if lang == 'en':
             prompt = f"""
             Role: CIO of a Global Macro Hedge Fund.
             Task: Curate a "Daily Market Intelligence Dashboard" from the provided report summaries.
@@ -161,7 +160,7 @@ def generate_synthesis(summaries_text, lang='ko'):
             ## 🦄 The "Hidden Gem" Insight
             * (A unique/contrarian idea found in the reports that others might miss)
             """
-        else:
+      else:
             prompt = f"""
             역할: 글로벌 매크로 헤지펀드 CIO.
             임무: 개별 리포트들을 종합하여, 핵심 종목과 전략이 한눈에 보이는 '모바일 마켓 대시보드'를 작성하십시오.
