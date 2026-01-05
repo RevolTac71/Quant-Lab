@@ -118,92 +118,91 @@ def generate_synthesis(summaries_text, lang='ko'):
     today_kst = datetime.now(KST).strftime('%Y-%m-%d')
     
     if lang == 'en':
-        if lang == 'en':
-            prompt = f"""
-            Role: CIO of a Global Macro Hedge Fund.
-            Task: Curate a "Daily Market Intelligence Dashboard" from the provided report summaries.
-            Target Audience: Traders reading on mobile. Needs to be "At-a-Glance" readable.
+        prompt = f"""
+        Role: CIO of a Global Macro Hedge Fund.
+        Task: Curate a "Daily Market Intelligence Dashboard" from the provided report summaries.
+        Target Audience: Traders reading on mobile. Needs to be "At-a-Glance" readable.
 
-            [Input Summaries]:
-            {summaries_text}
+        [Input Summaries]:
+        {summaries_text}
 
-            [Constraints]:
-            1. **Aggressive Curation**: Do not summarize everything. Pick the "Highest Conviction" calls from the inputs.
-            2. **Ticker Extraction**: You MUST extract specific tickers (e.g., $NVDA, $TSLA) mentioned in the reports and list them clearly.
-            3. **Visual Structure**: Use dividers, bold text for numbers, and emojis to create a "Dashboard" feel.
+        [Constraints]:
+        1. **Aggressive Curation**: Do not summarize everything. Pick the "Highest Conviction" calls from the inputs.
+        2. **Ticker Extraction**: You MUST extract specific tickers (e.g., $NVDA, $TSLA) mentioned in the reports and list them clearly.
+        3. **Visual Structure**: Use dividers, bold text for numbers, and emojis to create a "Dashboard" feel.
 
-            [Output Format (Markdown)]:
-            # ☕ Market Briefing ({today_kst})
+        [Output Format (Markdown)]:
+        # ☕ Market Briefing ({today_kst})
 
-            ## 🚦 Market Sentiment Meter
-            (Create a visual text gauge based on overall tone)
-            Example: [🔴 Fear ---⚪ Neutral ---🟢 Greed]
-            * **Verdict**: (One word: e.g., "Bullish", "Cautious", "Panic")
-            * **Driver**: (1 sentence on why)
+        ## 🚦 Market Sentiment Meter
+        (Create a visual text gauge based on overall tone)
+        Example: [🔴 Fear ---⚪ Neutral ---🟢 Greed]
+        * **Verdict**: (One word: e.g., "Bullish", "Cautious", "Panic")
+        * **Driver**: (1 sentence on why)
 
-            ---
+        ---
 
-            ## 🏆 Top High-Conviction Calls (Must Read)
-            (Aggregate the specific 'Long/Overweight' ideas from input reports)
-            | Ticker | Strategy | Key Rationale |
-            | :--- | :--- | :--- |
-            | **$TICKER** | Long/Short | (Short phrase, e.g., "Strong AI Demand") |
-            | **$TICKER** | Long/Short | (Short phrase) |
-            *(If no specific tickers, mention top sectors)*
+        ## 🏆 Top High-Conviction Calls (Must Read)
+        (Aggregate the specific 'Long/Overweight' ideas from input reports)
+        | Ticker | Strategy | Key Rationale |
+        | :--- | :--- | :--- |
+        | **$TICKER** | Long/Short | (Short phrase, e.g., "Strong AI Demand") |
+        | **$TICKER** | Long/Short | (Short phrase) |
+        *(If no specific tickers, mention top sectors)*
 
-            ---
+        ---
 
-            ## ⚡ 3-Minute Macro Digest
-            * **🌍 Global Theme**: (Dominant narrative)
-            * **⚠️ Risk Radar**: (Biggest threat today)
-            * **📊 Key Data**: (Most important number, e.g., "CPI 3.2%")
+        ## ⚡ 3-Minute Macro Digest
+        * **🌍 Global Theme**: (Dominant narrative)
+        * **⚠️ Risk Radar**: (Biggest threat today)
+        * **📊 Key Data**: (Most important number, e.g., "CPI 3.2%")
 
-            ## 🦄 The "Hidden Gem" Insight
-            * (A unique/contrarian idea found in the reports that others might miss)
-            """
-        else:
-            prompt = f"""
-            역할: 글로벌 매크로 헤지펀드 CIO.
-            임무: 개별 리포트들을 종합하여, 핵심 종목과 전략이 한눈에 보이는 '모바일 마켓 대시보드'를 작성하십시오.
-            독자: 출근길 1분 안에 돈이 되는 정보를 찾으려는 트레이더.
+        ## 🦄 The "Hidden Gem" Insight
+        * (A unique/contrarian idea found in the reports that others might miss)
+        """
+    else:
+        prompt = f"""
+        역할: 글로벌 매크로 헤지펀드 CIO.
+        임무: 개별 리포트들을 종합하여, 핵심 종목과 전략이 한눈에 보이는 '모바일 마켓 대시보드'를 작성하십시오.
+        독자: 출근길 1분 안에 돈이 되는 정보를 찾으려는 트레이더.
 
-            [입력 요약본]:
-            {summaries_text}
+        [입력 요약본]:
+        {summaries_text}
 
-            [제약 사항]:
-            1. **철저한 큐레이션**: 모든 내용을 나열하지 마십시오. 가장 확신(Conviction)이 높은 투자 아이디어만 선별하십시오.
-            2. **티커($) 필수 노출**: 입력 데이터에 있는 구체적인 종목명(예: $NVDA, $SOXL)을 반드시 추출하여 'Top Picks' 섹션에 배치하십시오.
-            3. **시각적 구조**: 줄글 대신 표(Table)나 짧은 리스트를 사용하여 가독성을 극대화하십시오.
+        [제약 사항]:
+        1. **철저한 큐레이션**: 모든 내용을 나열하지 마십시오. 가장 확신(Conviction)이 높은 투자 아이디어만 선별하십시오.
+        2. **티커($) 필수 노출**: 입력 데이터에 있는 구체적인 종목명(예: $NVDA, $SOXL)을 반드시 추출하여 'Top Picks' 섹션에 배치하십시오.
+        3. **시각적 구조**: 줄글 대신 표(Table)나 짧은 리스트를 사용하여 가독성을 극대화하십시오.
 
-            [출력 양식 (Markdown)]:
-            # ☕ 모닝 마켓 브리핑 ({today_kst})
+        [출력 양식 (Markdown)]:
+        # ☕ 모닝 마켓 브리핑 ({today_kst})
 
-            ## 🚦 시장 심리 미터기 (Market Meter)
-            (전반적인 리포트 분위기를 텍스트 게이지로 표현)
-            예시: [🔴 공포(Fear) -----⚪ 중립 -----🟢 탐욕(Greed)]
-            * **오늘의 한마디**: (예: "저가 매수 기회", "소나기는 피하자")
-            * **핵심 이유**: (1문장 요약)
+        ## 🚦 시장 심리 미터기 (Market Meter)
+        (전반적인 리포트 분위기를 텍스트 게이지로 표현)
+        예시: [🔴 공포(Fear) -----⚪ 중립 -----🟢 탐욕(Greed)]
+        * **오늘의 한마디**: (예: "저가 매수 기회", "소나기는 피하자")
+        * **핵심 이유**: (1문장 요약)
 
-            ---
+        ---
 
-            ## 🏆 오늘의 Top Picks (주목할 종목)
-            (입력된 리포트들의 'Long/Overweight' 의견을 종합하여 테이블로 정리)
-            | 종목($) | 포지션 | 핵심 논거 (짧게) |
-            | :--- | :--- | :--- |
-            | **$티커** | 매수/매도 | (예: AI 수요 폭발 지속) |
-            | **$티커** | 매수/매도 | (예: 금리 인하 수혜) |
-            *(특정 종목이 없다면 유망 섹터 기재)*
+        ## 🏆 오늘의 Top Picks (주목할 종목)
+        (입력된 리포트들의 'Long/Overweight' 의견을 종합하여 테이블로 정리)
+        | 종목($) | 포지션 | 핵심 논거 (짧게) |
+        | :--- | :--- | :--- |
+        | **$티커** | 매수/매도 | (예: AI 수요 폭발 지속) |
+        | **$티커** | 매수/매도 | (예: 금리 인하 수혜) |
+        *(특정 종목이 없다면 유망 섹터 기재)*
 
-            ---
+        ---
 
-            ## ⚡ 3분 매크로 요약
-            * **🌍 핵심 테마**: (시장을 움직이는 메인 이슈)
-            * **⚠️ 리스크 레이더**: (오늘 조심해야 할 하방 요인)
-            * **📊 데이터 체크**: (주목해야 할 지표/수치)
+        ## ⚡ 3분 매크로 요약
+        * **🌍 핵심 테마**: (시장을 움직이는 메인 이슈)
+        * **⚠️ 리스크 레이더**: (오늘 조심해야 할 하방 요인)
+        * **📊 데이터 체크**: (주목해야 할 지표/수치)
 
-            ## 🦄 틈새/역발상 아이디어 (Hidden Gem)
-            * (남들이 보지 못한 독특한 인사이트 1가지)
-            """
+        ## 🦄 틈새/역발상 아이디어 (Hidden Gem)
+        * (남들이 보지 못한 독특한 인사이트 1가지)
+        """
         
     try:
         res = model.generate_content(prompt)
@@ -278,6 +277,7 @@ if __name__ == "__main__":
                 * (중요 수치 1)
                 * (중요 수치 2)
                 """
+                
                 res_ko = model.generate_content(prompt_ko)
                 
                 prompt_en = f"""
