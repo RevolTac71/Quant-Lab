@@ -8,18 +8,18 @@ import google.generativeai as genai
 from pypdf import PdfReader
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta, timezone # timezone 필수
+from datetime import datetime, timedelta, timezone
 from supabase import create_client
 
 # ==========================================
 # 1. 환경 설정
 # ==========================================
 
-# 한국 시간대(KST) 정의 - 서버에서도 한국 시간으로 뜨게 함
+# 한국 시간대(KST) 정의
 KST = timezone(timedelta(hours=9))
 
 try:
-    # 1. 로컬 개발 환경
+    # 1. 로컬 개발 환경 (.streamlit/secrets.toml 로드 시도)
     current_dir = os.path.dirname(os.path.abspath(__file__))
     secrets_path = os.path.join(current_dir, ".streamlit", "secrets.toml")
     
@@ -33,7 +33,7 @@ try:
         GMAIL_USER = secrets["GMAIL"]["GMAIL_USER"]
         GMAIL_APP_PWD = secrets["GMAIL"]["GMAIL_APP_PWD"]
     else:
-        # 2. GitHub Actions 환경
+        # 2. GitHub Actions 및 배포 환경 (환경변수 사용)
         SUPABASE_URL = os.environ.get("SUPABASE_URL")
         SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
         GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -116,6 +116,7 @@ def generate_synthesis(summaries_text, lang='ko'):
     
     today_kst = datetime.now(KST).strftime('%Y-%m-%d')
     
+    # 프롬프트 설정 (제공해주신 코드의 프롬프트 유지)
     if lang == 'en':
         prompt = f"""
         Role: CIO of a Global Macro Hedge Fund.
@@ -187,7 +188,7 @@ def generate_synthesis(summaries_text, lang='ko'):
         1. **Top Picks 검증(Evidence Check)**: 'Top Picks' 테이블에는 단순히 언급된 종목이 아니라, 확실한 근거(실적, 수급, 모멘텀 등)가 있는 종목만 포함하십시오. '근거'란에 그 이유를 명시하십시오.
         2. **구조 분리**: 대시보드와 심층 분석 사이에는 반드시 구분선(---)을 넣어 시각적으로 분리하십시오.
         3. **틈새 아이디어**: 남들이 보지 못한 역발상(Contrarian) 아이디어를 대시보드에 꼭 포함하십시오.
-        4. 종목명에 달러 기호($)를 사용할 때는 반드시 **이스케이프 문자(\$)**를 사용하십시오. (예: $NVDA대신$NVDA 로 작성). 특히 언더바( \_\)가 포함된 티커는 수식으로 깨지기 쉬우니 주의하십시오.
+        4. 종목명에 달러 기호($)를 사용할 때는 반드시 **이스케이프 문자(\$)**를 사용하십시오. (예: $NVDA 대신 \$NVDA 로 작성). 특히 언더바( \_\)가 포함된 티커는 수식으로 깨지기 쉬우니 주의하십시오.
 
         [출력 양식 (Markdown)]:
         # ☕ 모닝 마켓 브리핑 ({today_kst})
@@ -203,8 +204,8 @@ def generate_synthesis(summaries_text, lang='ko'):
         ### 🏆 오늘의 Top Picks 
         | 종목($) | 포지션 | 핵심 논거 | 근거/데이터 체크 |
         | :--- | :--- | :--- | :--- |
-        | **$티커** | 매수/매도 | (예: AI 수요 지속) | (예: "영업이익률 50% 상회") |
-        | **$티커** | 매수/매도 | (예: 낙폭 과대) | (예: "RSI 30 하회") |
+        | **\$티커** | 매수/매도 | (예: AI 수요 지속) | (예: "영업이익률 50% 상회") |
+        | **\$티커** | 매수/매도 | (예: 낙폭 과대) | (예: "RSI 30 하회") |
 
         ### 🦄 틈새/역발상 아이디어 
         * (대중의 생각과 다르거나, 놓치기 쉬운 독특한 투자 기회 1가지)
@@ -254,7 +255,7 @@ def send_email_batch(subject, body, receivers):
         print(f"❌ 이메일 발송 실패: {e}")
 
 # ==========================================
-# 3. 메인 로직
+# 3. 메인 실행 (Batch Process)
 # ==========================================
 if __name__ == "__main__":
     print("🚀 QuantLab Daily Job 시작...")
@@ -264,7 +265,7 @@ if __name__ == "__main__":
     structured_summaries = [] 
     model = genai.GenerativeModel('gemini-2.5-flash')
     
-    # 2. 개별 리포트 요약
+    # 1. 개별 리포트 처리
     for report in reports:
         print(f"Processing: {report['title']}...")
         
@@ -272,30 +273,24 @@ if __name__ == "__main__":
         
         if text:
             try:
+                # [개별 리포트 요약 프롬프트]
                 prompt_ko = f"""
                 당신은 시니어 퀀트 애널리스트입니다.
                 주어진 리포트를 PM이 즉시 활용할 수 있는 '구조화된 데이터 카드'로 변환하십시오.
-
-                [입력 텍스트]:
-                {text}
-
+                [입력 텍스트]: {text}
                 [분석 지침]:
                 1. **Ticker 강제 추출**: 종목명은 반드시 티커 형태(예: $TSLA)로 변환하여 기재하십시오.
                 2. **명확한 구분**: 팩트(Fact)와 의견(Opinion)을 구분하고, 수치(Numbers) 위주로 요약하십시오.
                 3. **간결함**: 모바일에서 읽기 좋게 문장을 짧게 끊으십시오.
-
                 [출력 양식 (Markdown)]:
                 ### 📄 [리포트 제목/주제] 분석
                 * **💡 One-Liner**: (핵심 논리 1문장)
                 * **🌡️ Sentiment**: [점수 -5 ~ +5]
-
                 #### 🎯 핵심 투자 아이디어 (Key Calls)
                 * **🟢 Long (매수/비중확대)**:
                 - **$TICKER**: (목표가 혹은 투자 포인트)
-                - **$TICKER**: (목표가 혹은 투자 포인트)
                 * **🔴 Short (매도/리스크)**:
                 - **$TICKER**: (리스크 요인)
-
                 #### 🔢 핵심 데이터 (Key Numbers)
                 * (중요 수치 1)
                 * (중요 수치 2)
@@ -306,25 +301,19 @@ if __name__ == "__main__":
                 prompt_en = f"""
                 Role: Senior Quant Analyst.
                 Task: Convert the report into a 'Structured Data Card' for immediate PM use.
-
-                [Input Text]:
-                {text}
-
+                [Input Text]: {text}
                 [Guidelines]:
                 1. **Force Tickers**: Always convert company names to Tickers (e.g., $TSLA).
                 2. **Conciseness**: Short bullets only. Focus on Numbers (%, $).
-
                 [Output Format (Markdown)]:
                 ### 📄 Report Analysis
                 * **💡 One-Liner**: (Core thesis in 1 sentence)
                 * **🌡️ Sentiment**: [Score -5 to +5]
-
                 #### 🎯 Key Investment Calls
                 * **🟢 Long/Overweight**:
                 - **$TICKER**: (Target Price / Catalyst)
                 * **🔴 Short/Underweight**:
                 - **$TICKER**: (Risk Factors)
-
                 #### 🔢 Key Numbers
                 * (Critical Metric 1)
                 * (Critical Metric 2)
@@ -351,6 +340,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Error processing {report['title']}: {e}")
 
+    # 2. 종합 리포트 생성 및 저장/발송
     if structured_summaries:
         all_text_en = "\n\n".join([f"Title: {s['title']}\nSummary: {s['summary_en']}" for s in structured_summaries])
         

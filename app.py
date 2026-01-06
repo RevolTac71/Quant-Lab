@@ -13,13 +13,19 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS 스타일
+# CSS 스타일: 사이드바 Sticky 효과 및 여백 조정
 st.markdown("""
     <style>
+    /* Expander(접기/펼치기) 폰트 크기 최적화 */
+    .streamlit-expanderContent p {
+        font-size: 1rem;
+        line-height: 1.6;
+    }
+    /* 큰 화면에서 오른쪽 컬럼 Sticky 처리 */
     @media (min-width: 992px) {
         div[data-testid="stColumn"]:nth-of-type(2) {
             position: sticky;
-            top: 6rem;
+            top: 2rem;
             z-index: 1000;
             height: fit-content;
         }
@@ -41,7 +47,7 @@ except Exception as e:
     st.stop()
 
 # ---------------------------------------------------------
-# 2. 핵심 로직 함수
+# 2. 핵심 로직 함수 (구독 관련)
 # ---------------------------------------------------------
 
 def log_action(email, action_type):
@@ -51,7 +57,7 @@ def log_action(email, action_type):
             "email": email,
             "action_type": action_type
         }).execute()
-        print(f"Log saved: {email} - {action_type}")
+        # print(f"Log saved: {email} - {action_type}")
     except Exception as e:
         print(f"로그 저장 실패: {e}")
 
@@ -79,9 +85,7 @@ def send_subscription_alert(new_email):
 def subscribe_user_to_db(email, language='ko'):
     try:
         KST = timezone(timedelta(hours=9))
-
         now_kst = datetime.now(KST)
-
         current_date = now_kst.strftime("%Y-%m-%d")
         
         data = {
@@ -94,9 +98,8 @@ def subscribe_user_to_db(email, language='ko'):
         # upsert: 있으면 수정(재구독), 없으면 추가
         supabase.table("subscribers").upsert(data, on_conflict='email').execute()
         
-        # 로그 기록 (여기에 정확한 시간이 찍힘)
+        # 로그 기록
         log_action(email, 'SUBSCRIBE')
-        
         send_subscription_alert(email)
         return "success"
 
@@ -112,7 +115,6 @@ def unsubscribe_user_from_db(email):
 
         KST = timezone(timedelta(hours=9))
         now_kst = datetime.now(KST)
-        
         current_date = now_kst.strftime("%Y-%m-%d")
 
         supabase.table("subscribers").update({
@@ -120,31 +122,32 @@ def unsubscribe_user_from_db(email):
             "end_date": current_date
         }).eq("email", email).execute()
         
-        # 로그 기록
         log_action(email, 'UNSUBSCRIBE')
-        
         return "success"
         
     except Exception as e:
         return f"error: {str(e)}"
 
 # ---------------------------------------------------------
-# 3. UI 구성
+# 3. UI 구성 (오버레이 문제 해결 및 사용자 친화적 디자인)
 # ---------------------------------------------------------
 
-st.title("💸 AI 뉴스레터")
+st.title("💸 AI Quant Lab")
+st.caption("Global Market Intelligence powered by Gemini 2.5 Flash")
 st.divider()
 
-col1, col2 = st.columns([2, 1])
+# 레이아웃 비율 [2:1]로 설정하여 오버레이 방지
+col1, col2 = st.columns([2, 1], gap="large")
 
-# [왼쪽] 리포트 영역
+# [왼쪽] 리포트 메인 영역
 with col1:
     st.subheader("📰 오늘의 글로벌 기관 리포트")
     
-    lang_option = st.radio("언어 선택 (Language)", ["🇰🇷 한국어", "🇺🇸 English"], horizontal=True)
+    lang_option = st.radio("언어 선택 (Language)", ["🇰🇷 한국어", "🇺🇸 English"], horizontal=True, label_visibility="collapsed")
     selected_lang_code = 'ko' if "한국어" in lang_option else 'en'
     
     try:
+        # DB에서 최신 리포트 1개 가져오기
         db_response = supabase.table("daily_reports").select("*").order("created_at", desc=True).limit(1).execute()
         
         if db_response.data:
@@ -154,26 +157,47 @@ with col1:
                 summary_text = latest_report.get('summary_ko', '한국어 요약이 없습니다.')
             else:
                 summary_text = latest_report.get('summary_en', 'English summary not available.')
+            
+            # [UI 개선] 대시보드와 심층분석 분리 (Expander 활용)
+            if "---" in summary_text:
+                parts = summary_text.split("---", 1)
+                dashboard_text = parts[0]
+                deep_dive_text = parts[1] if len(parts) > 1 else ""
                 
-            st.markdown(summary_text)
+                # 1. 대시보드 (항상 보임)
+                st.markdown(dashboard_text)
+                
+                st.write("") # 여백
+                
+                # 2. 심층 분석 (접기/펼치기) - 모바일 가독성 향상
+                with st.expander("🔍 심층 마켓 분석 (Deep Dive Analysis) 전체 보기", expanded=False):
+                    st.markdown(deep_dive_text)
+            else:
+                # 구분선이 없는 경우 통째로 출력
+                st.markdown(summary_text)
+            
+            st.caption(f"Update: {latest_report['created_at'][:10]}")
             
         else:
-            st.warning("아직 생성된 리포트가 없습니다. (DB가 비어있음)")
+            st.info("😴 아직 발행된 리포트가 없습니다. 내일 아침에 다시 방문해주세요!")
             
     except Exception as e:
         st.error(f"리포트를 불러오는 중 오류가 발생했습니다: {e}")
 
-# [오른쪽] 사이드바 및 기능
+# [오른쪽] 사이드바 및 기능 영역
 with col2:
-    st.info("💡 **QuantLab 활용법**")
-    st.markdown("""
-    1. **매일 아침 8시** 월가 리포트 요약 업데이트
-    2. **MonteCarlo**: 포트폴리오 시뮬레이션
-    3. **Stock Scoring**: AI 종목 점수 분석
-    """)
+    # 카드 형태로 감싸서 시각적 분리
+    with st.container(border=True):
+        st.info("💡 **QuantLab 활용법**")
+        st.markdown("""
+        1. **매일 아침 8시** 업데이트
+        2. **Dashboard**: 출근길 1분 요약
+        3. **Deep Dive**: 전문적인 심층 분석
+        """)
     
-    st.divider()
-    
+    st.write("") # 여백
+
+    # 구독 탭 영역
     tab_sub, tab_unsub = st.tabs(["📩 구독 신청", "👋 구독 취소"])
     
     # 1. 구독 신청 탭
@@ -181,20 +205,18 @@ with col2:
         with st.form(key='sub_form'):
             sub_email = st.text_input("이메일 주소", placeholder="example@email.com")
             pref_lang = st.selectbox("리포트 언어", ["Korean (한국어)", "English (영어)"])
-            sub_btn = st.form_submit_button("무료 구독하기")
+            sub_btn = st.form_submit_button("무료 구독하기", use_container_width=True)
             
             if sub_btn:
                 if "@" not in sub_email:
-                    st.warning("이메일 형식이 올바르지 않습니다.")
+                    st.warning("올바른 이메일 형식을 입력해주세요.")
                 else:
                     lang_code = 'en' if "English" in pref_lang else 'ko'
-                    
                     with st.spinner("DB 등록 중..."):
                         result = subscribe_user_to_db(sub_email, lang_code)
-                        
                         if result == "success":
-                            st.balloons()
-                            st.success(f"환영합니다! '{sub_email}'님이 구독 리스트에 등록되었습니다.")
+                            st.toast("구독 완료! 환영합니다 🎉", icon="✅")
+                            st.success(f"'{sub_email}'님이 구독 리스트에 등록되었습니다.")
                         else:
                             st.error(f"오류 발생: {result}")
 
@@ -202,27 +224,28 @@ with col2:
     with tab_unsub:
         with st.form(key='unsub_form'):
             unsub_email = st.text_input("구독했던 이메일", placeholder="example@email.com")
-            unsub_btn = st.form_submit_button("구독 취소하기")
+            unsub_btn = st.form_submit_button("구독 취소하기", use_container_width=True)
             
             if unsub_btn:
                 with st.spinner("처리 중..."):
                     result = unsubscribe_user_from_db(unsub_email)
                     if result == "success":
-                        st.success("구독이 취소되었습니다. 언제든 다시 돌아오세요!")
+                        st.toast("구독 취소 완료. 다음에 또 만나요! 👋", icon="✅")
                     elif result == "not_found":
                         st.warning("구독 정보를 찾을 수 없습니다.")
                     else:
                         st.error(f"오류 발생: {result}")
 
-st.divider()
-with st.sidebar:
+    st.divider()
+    
+    # 하단 정보 (사이드바 대체)
     st.caption("☕ **Buy Me a Coffee**")
     buymeacoffee_url = "https://www.buymeacoffee.com/revoltac"
     st.markdown(f"""
-        <div style="text-align:center;">
+        <div style="text-align:center; margin-bottom: 20px;">
             <a href="{buymeacoffee_url}" target="_blank">
                 <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" style="width: 150px;" >
             </a>
         </div>
     """, unsafe_allow_html=True)
-    st.caption("문의: ksmsk0701@gmail.com")
+    st.caption("Contact: ksmsk0701@gmail.com")
