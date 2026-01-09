@@ -188,8 +188,6 @@ with col1:
             else:
                 st.markdown(summary_text)
             
-            st.caption(f"Update: {latest_report['created_at'][:10]}")
-            
         else:
             st.info("😴 아직 발행된 리포트가 없습니다. 내일 아침에 다시 방문해주세요!")
             
