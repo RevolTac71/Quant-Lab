@@ -5,7 +5,6 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import os, sys
 
-# [변경] pandas_ta 대신 ta 라이브러리 모듈 임포트
 from ta.momentum import RSIIndicator
 from ta.trend import SMAIndicator
 
