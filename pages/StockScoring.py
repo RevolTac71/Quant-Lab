@@ -3,7 +3,11 @@ import yfinance as yf
 import pandas as pd
 import datetime as dt
 import matplotlib.pyplot as plt
-import os,sys
+import os, sys
+
+# [변경] pandas_ta 대신 ta 라이브러리 모듈 임포트
+from ta.momentum import RSIIndicator
+from ta.trend import SMAIndicator
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -19,7 +23,7 @@ def calculate_volume_profile(data, bins=50):
     price_min = data['Close'].min()
     price_max = data['Close'].max()
     intervals = pd.cut(data['Close'], bins=bins)
-    vol_profile = data.groupby(intervals)['Volume'].sum()
+    vol_profile = data.groupby(intervals, observed=False)['Volume'].sum() # observed=False 추가 (Pandas 최신 버전 경고 방지)
     return vol_profile, intervals
 
 def get_current_bin_rank(current_price, vol_profile):
@@ -39,12 +43,29 @@ def get_trading_intensity(ticker, period_days):
     try:
         data = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
         if data.empty: return None, None, None, None
-        if isinstance(data.columns, pd.MultiIndex): data.columns = data.columns.get_level_values(0)
+        
+        # MultiIndex 컬럼 처리
+        if isinstance(data.columns, pd.MultiIndex): 
+            data.columns = data.columns.get_level_values(0)
 
-        data.ta.rsi(length=14, append=True)
-        data.ta.sma(length=5, append=True)
-        data.ta.sma(length=20, append=True)
+        # -------------------------------------------------------
+        # [핵심 수정] pandas_ta -> ta 라이브러리로 교체
+        # -------------------------------------------------------
+        
+        # 1. RSI (14일)
+        rsi_indicator = RSIIndicator(close=data['Close'], window=14)
+        data['RSI_14'] = rsi_indicator.rsi()
+
+        # 2. SMA (5일, 20일) - 참고용 데이터 생성
+        sma5 = SMAIndicator(close=data['Close'], window=5)
+        data['SMA_5'] = sma5.sma_indicator()
+        
+        sma20 = SMAIndicator(close=data['Close'], window=20)
+        data['SMA_20'] = sma20.sma_indicator()
+
+        # 3. 거래량 이동평균 (Pandas 기본 기능 사용이 가장 효율적)
         vol_sma_20 = data['Volume'].rolling(window=20).mean()
+        # -------------------------------------------------------
 
         latest = data.iloc[-1]
         prev_1 = data.iloc[-2]
@@ -61,8 +82,14 @@ def get_trading_intensity(ticker, period_days):
         elif vol_rank >= 60: buy_score['volume_profile'] += 20
         elif vol_rank >= 40: buy_score['volume_profile'] += 10
         
-        # 2. RSI
+        # 2. RSI 점수
+        # ta 라이브러리로 계산된 RSI_14 컬럼 사용
         rsi = latest['RSI_14']
+        
+        # RSI가 NaN인 경우(데이터 부족 등) 방어 로직
+        if pd.isna(rsi):
+            rsi = 50 # 중립으로 처리
+            
         if rsi <= 25: buy_score['rsi'] += 30
         elif rsi <= 30: buy_score['rsi'] += 25
         elif rsi <= 35: buy_score['rsi'] += 15
@@ -75,6 +102,11 @@ def get_trading_intensity(ticker, period_days):
 
         # 4. 거래량 감소
         vol_avg = vol_sma_20.iloc[-1]
+        
+        # 거래량 데이터가 없는 경우 방어
+        if pd.isna(vol_avg) or vol_avg == 0:
+            vol_avg = 1 
+            
         current_vol = latest['Volume']
         if current_vol < (vol_avg * 0.6): buy_score['volume_drop'] += 20
         elif current_vol < (vol_avg * 0.8): buy_score['volume_drop'] += 15
@@ -91,11 +123,10 @@ def get_trading_intensity(ticker, period_days):
 # -----------------------------------------------------------
 st.title("🎯 매수 타점 분석기")
 
-# [모바일 친화적 입력창] 메인 화면에 검색창 배치
+# 모바일 친화적 입력창
 with st.container():
     col_search1, col_search2 = st.columns([3, 1])
     with col_search1:
-        # 사이드바 대신 여기서 입력 가능
         main_ticker = st.text_input("종목 코드 입력", placeholder="예: TSLA, 005930.KS", label_visibility="collapsed")
     with col_search2:
         main_search_btn = st.button("분석")
