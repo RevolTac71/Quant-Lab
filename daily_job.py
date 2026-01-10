@@ -19,7 +19,7 @@ from supabase import create_client
 KST = timezone(timedelta(hours=9))
 
 try:
-    # 1. 로컬 개발 환경 (.streamlit/secrets.toml 로드 시도)
+    # 1. 로컬 개발 환경
     current_dir = os.path.dirname(os.path.abspath(__file__))
     secrets_path = os.path.join(current_dir, ".streamlit", "secrets.toml")
     
@@ -33,7 +33,7 @@ try:
         GMAIL_USER = secrets["GMAIL"]["GMAIL_USER"]
         GMAIL_APP_PWD = secrets["GMAIL"]["GMAIL_APP_PWD"]
     else:
-        # 2. GitHub Actions 및 배포 환경 (환경변수 사용)
+        # 2. GitHub Actions 환경
         SUPABASE_URL = os.environ.get("SUPABASE_URL")
         SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
         GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -116,9 +116,10 @@ def generate_synthesis(summaries_text, lang='ko'):
     
     today_kst = datetime.now(KST).strftime('%Y-%m-%d')
     
+    # [수정됨] rf""" (Raw f-string) 사용 및 티커 환각 방지 제약사항 추가
     if lang == 'en':
-        prompt = f"""
-        Role: Global Macro Hedge Fund CIO.
+        prompt = rf"""
+        Role: CIO of a Global Macro Hedge Fund.
         Task: Create a "Daily Market Intelligence Brief" based on the provided report summaries.
         Structure: The report is clearly divided into two parts:
             1. **Top**: "Mobile Dashboard" for busy commuters (Summary & Top Picks).
@@ -132,7 +133,10 @@ def generate_synthesis(summaries_text, lang='ko'):
         2. **Structural Separation**: You MUST insert a horizontal rule (---) between the Dashboard and the Deep Dive to visually separate them.
         3. **Contrarian Idea**: You MUST include a "Contrarian/Hidden Gem" idea in the Dashboard that others might miss.
         4. **CRITICAL FORMATTING RULE**: When using the dollar sign ($) for tickers or within the 'Evidence/Data Check' column, **YOU MUST USE THE ESCAPE CHARACTER (\\$)** (e.g., write \\$NVDA instead of $NVDA). Be especially careful with tickers containing underscores (_), as they cause LaTeX rendering errors.
-        5. Only use ticker that really listed in market(Ex: Nasdaq, daw jones .etc). (Don't use like $ROC, which is not exists)
+        5. **STRICT TICKER VALIDATION**: 
+            - **Do NOT use country codes** or abbreviations as tickers (e.g., NO \$CN, \$KR, \$JP, \$ROC, \$AI). 
+            - If the report mentions a country/sector without a specific company, **use a representative ETF** (e.g., Use \$MCHI or \$FXI for China, \$SOXX for Semiconductors).
+            - If no valid ticker exists, **write the Sector Name** instead of a ticker.
 
         [Output Format (Markdown)]:
         # ☕ Morning Market Brief ({today_kst})
@@ -151,7 +155,7 @@ def generate_synthesis(summaries_text, lang='ko'):
         | Ticker (\$) | Position | Core Rationale | Evidence/Data Check |
         | :--- | :--- | :--- | :--- |
         | **\$TICKER** | Buy/Sell | (e.g., AI demand persistent) | (e.g., "OPM exceeded 50%") |
-        | **\$TICKER** | Buy/Sell | (e.g., Oversold condition) | (e.g., "RSI below 30") |
+        | **\$TICKER** (or Sector) | Buy/Sell | (e.g., Oversold condition) | (e.g., "RSI below 30") |
 
         ### 🦄 Contrarian/Hidden Gem Idea 
         * (One unique investment opportunity different from the crowd or easy to miss)
@@ -174,7 +178,8 @@ def generate_synthesis(summaries_text, lang='ko'):
         * **Key Levels**: (Support/Resistance lines like S&P 500 at 5000, etc.)
         """
     else:
-        prompt = f"""
+        # [수정됨] rf""" 사용 및 한국어용 티커 환각 방지 제약사항 추가
+        prompt = rf"""
         역할: 글로벌 매크로 헤지펀드 CIO.
         임무: 제공된 리포트 요약본을 바탕으로 '일일 마켓 인텔리전스 브리핑'을 작성하십시오.
         구조: 리포트는 두 부분으로 명확히 나뉩니다.
@@ -188,8 +193,10 @@ def generate_synthesis(summaries_text, lang='ko'):
         1. **Top Picks 검증(Evidence Check)**: 'Top Picks' 테이블에는 단순히 언급된 종목이 아니라, 확실한 근거(실적, 수급, 모멘텀 등)가 있는 종목만 포함하십시오. '근거'란에 그 이유를 명시하십시오.
         2. **구조 분리**: 대시보드와 심층 분석 사이에는 반드시 구분선(---)을 넣어 시각적으로 분리하십시오.
         3. **틈새 아이디어**: 남들이 보지 못한 역발상(Contrarian) 아이디어를 대시보드에 꼭 포함하십시오.
-        4. 종목 및 근거/데이터체크 내용 중 종목에 달러 기호($)를 사용할 때는 반드시 **이스케이프 문자(\$)**를 사용하십시오. (예: $NVDA 대신 \$NVDA 로 작성). 특히 언더바( \_\)가 포함된 티커는 수식으로 깨지기 쉬우니 주의하십시오.
-        5. 티커는 현재 실제로 시장(나스닥, 코스피 등)에 상장되어 있는 기업의 티커를 사용하십시오.
+        4. **포맷팅 주의(중요)**: 종목 및 근거/데이터체크 내용 중 종목에 달러 기호($)를 사용할 때는 반드시 **이스케이프 문자(\$)**를 사용하십시오. (예: \$NVDA).
+        5. **티커 엄격 검증(중요)**: 
+           - **국가 코드나 약어를 티커로 쓰지 마십시오.** (금지 예시: \$CN, \$KR, \$ROC, \$AI). 중국이나 한국 등 국가 전체를 지칭할 경우 **대표 ETF**를 사용하십시오 (예: 중국 -> \$MCHI, 반도체 -> \$SOXX).
+           - 텍스트에 구체적인 상장 기업이 명시되지 않았다면, **억지로 티커를 만들지 말고 '섹터명(예: 반도체, 중국소비)'을 한글로 적으십시오.**
         
         [출력 양식 (Markdown)]:
         # ☕ 모닝 마켓 브리핑 ({today_kst})
@@ -206,7 +213,7 @@ def generate_synthesis(summaries_text, lang='ko'):
         | 종목($) | 포지션 | 핵심 논거 | 근거/데이터 체크 |
         | :--- | :--- | :--- | :--- |
         | **\$티커** | 매수/매도 | (예: AI 수요 지속) | (예: "영업이익률 50% 상회") |
-        | **\$티커** | 매수/매도 | (예: 낙폭 과대) | (예: "RSI 30 하회") |
+        | **\$티커** (혹은 섹터명) | 매수/매도 | (예: 낙폭 과대) | (예: "RSI 30 하회") |
 
         ### 🦄 틈새/역발상 아이디어 
         * (대중의 생각과 다르거나, 놓치기 쉬운 독특한 투자 기회 1가지)
