@@ -10,3 +10,4 @@ pandas_ta
 numpy
 matplotlib
 ta
+aiohttp

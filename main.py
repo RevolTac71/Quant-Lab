@@ -1,10 +1,7 @@
 import streamlit as st
-import os
-import toml
-import smtplib
-from email.mime.text import MIMEText
-from supabase import create_client
-from datetime import datetime, timedelta, timezone
+from config import settings
+from services.db_service import DBService
+from services.email_service import EmailService
 from sidebar import render_sidebar
 
 # ---------------------------------------------------------
@@ -38,107 +35,28 @@ st.markdown("""
 
 render_sidebar()
 
-# Supabase 연결
+# DB 서비스 초기화 (캐시 사용)
 @st.cache_resource
-def init_supabase():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    secrets_path = os.path.join(base_dir, ".streamlit", "secrets.toml")
-    
-    if os.path.exists(secrets_path):
-        secrets = toml.load(secrets_path)
-        SUPABASE_URL = secrets["supabase"]["SUPABASE_URL"]
-        SUPABASE_KEY = secrets["supabase"]["SUPABASE_KEY"]
-    else:
-        SUPABASE_URL = os.environ.get("SUPABASE_URL")
-        SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-        
-        if not SUPABASE_URL:
-            try:
-                SUPABASE_URL = st.secrets["supabase"]["SUPABASE_URL"]
-                SUPABASE_KEY = st.secrets["supabase"]["SUPABASE_KEY"]
-            except:
-                pass
-
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+def get_db_service():
+    return DBService()
 
 try:
-    supabase = init_supabase()
+    db_service = get_db_service()
+    supabase = db_service.client # 기존 코드 호환을 위해 client 객체 노출
 except Exception as e:
-    st.error(f"DB 연결 실패: secrets.toml을 확인해주세요. ({e})")
+    st.error(f"DB 연결 실패: 설정 파일을 확인해주세요. ({e})")
     st.stop()
 
 # ---------------------------------------------------------
 # 2. 핵심 로직 함수
 # ---------------------------------------------------------
 
-def log_action(email, action_type):
-    try:
-        supabase.table("subscription_logs").insert({
-            "email": email,
-            "action_type": action_type
-        }).execute()
-    except Exception as e:
-        print(f"로그 저장 실패: {e}")
+# Email 서비스 초기화
+@st.cache_resource
+def get_email_service():
+    return EmailService()
 
-def send_subscription_alert(new_email):
-    try:
-        sender = st.secrets["GMAIL"]["GMAIL_USER"]
-        password = st.secrets["GMAIL"]["GMAIL_APP_PWD"]
-        admin_email = "ksmsk0701@gmail.com"
-
-        msg = MIMEText(f"DB에 새로운 구독자가 등록되었습니다!\n\n이메일: {new_email}")
-        msg['Subject'] = f"🔔 신규 구독자: {new_email}"
-        msg['From'] = sender
-        msg['To'] = admin_email
-
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(sender, password)
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        print(f"메일 발송 에러: {e}")
-        return False
-
-def subscribe_user_to_db(email, language='ko'):
-    try:
-        KST = timezone(timedelta(hours=9))
-        now_kst = datetime.now(KST)
-        current_date = now_kst.strftime("%Y-%m-%d")
-        
-        data = {
-            "email": email, 
-            "is_active": True, 
-            "language": language,
-            "start_date": current_date, 
-        }
-        
-        supabase.table("subscribers").upsert(data, on_conflict='email').execute()
-        log_action(email, 'SUBSCRIBE')
-        send_subscription_alert(email)
-        return "success"
-    except Exception as e:
-        return f"error: {str(e)}"
-
-def unsubscribe_user_from_db(email):
-    try:
-        check = supabase.table("subscribers").select("*").eq("email", email).execute()
-        if not check.data:
-            return "not_found"
-
-        KST = timezone(timedelta(hours=9))
-        now_kst = datetime.now(KST)
-        current_date = now_kst.strftime("%Y-%m-%d")
-
-        supabase.table("subscribers").update({
-            "is_active": False,
-            "end_date": current_date
-        }).eq("email", email).execute()
-        
-        log_action(email, 'UNSUBSCRIBE')
-        return "success"
-    except Exception as e:
-        return f"error: {str(e)}"
+email_service = get_email_service()
 
 # 3. 메인 페이지 구성
 st.title("📰 오늘의 글로벌 기관 리포트 (Today's Global Reports)")
@@ -221,10 +139,15 @@ with col2:
                 else:
                     lang_code = 'en' if "English" in pref_lang else 'ko'
                     with st.spinner("DB 등록 중..."):
-                        result = subscribe_user_to_db(sub_email, lang_code)
+                        result = db_service.subscribe_user(sub_email, lang_code)
                         if result == "success":
                             st.toast("구독 완료! 환영합니다 🎉", icon="✅")
                             st.success(f"'{sub_email}'님이 구독 리스트에 등록되었습니다.")
+                            # 관리자 알림
+                            email_service.send_admin_alert(
+                                f"🔔 신규 구독자: {sub_email}", 
+                                f"DB에 새로운 구독자가 등록되었습니다!\n\n이메일: {sub_email}"
+                            )
                         else:
                             st.error(f"오류 발생: {result}")
 
@@ -235,7 +158,7 @@ with col2:
             
             if unsub_btn:
                 with st.spinner("처리 중..."):
-                    result = unsubscribe_user_from_db(unsub_email)
+                    result = db_service.unsubscribe_user(unsub_email)
                     if result == "success":
                         st.toast("구독 취소 완료. 다음에 또 만나요! 👋", icon="✅")
                     elif result == "not_found":
