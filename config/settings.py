@@ -46,6 +46,9 @@ TARGET_SITES = [
     "blackrock.com", "macquarie.com", "kkr.com", "brookfield.com",
     "goldmansachs.com", "jpmorgan.com", "morganstanley.com", "ubs.com",
     "mckinsey.com", "pwc.com", "bain.com", "deloitte.com",
-    "worldbank.org", "adb.org", "imf.org"
+    "worldbank.org", "adb.org", "imf.org",
+    "standardandpoors.com", "moodys.com", "fitchratings.com",
+    "pimco.com", "schroders.com", "fidelity.com", "vanguard.com", "statestreet.com",
+    "nomura.com", "deutsche-bank.com", "credit-suisse.com", "barclays.com"
 ]
 SEARCH_KEYWORD = "Infrastructure Outlook"
