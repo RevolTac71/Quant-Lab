@@ -31,7 +31,7 @@ class LLMService:
                 wait_time = 2 * (2 ** attempt)  # 2, 4, 8, 16, 32 seconds
                 logger.warning(f"LLM generation failed (Attempt {attempt+1}/{retries}): {e}. Retrying in {wait_time}s...")
                 if attempt == retries - 1:
-                    return f"Error: {e}"
+                    return None
                 await asyncio.sleep(wait_time)
 
     def generate_content(self, prompt):
@@ -41,4 +41,6 @@ class LLMService:
             return response.text
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
-            return f"Error: {e}"
+        except Exception as e:
+            logger.error(f"LLM generation failed: {e}")
+            return None

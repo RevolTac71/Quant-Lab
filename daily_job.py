@@ -14,7 +14,7 @@ logger = setup_logger(__name__)
 # KST Timezone
 KST = timezone(timedelta(hours=9))
 
-async def process_report(report, crawler_service, llm_service, db_service):
+async def process_report(report, crawler_service, llm_service, db_service, email_service):
     """Downloads, extracts, summarizes, and saves a single report."""
     title = report['title']
     link = report['link']
@@ -36,6 +36,15 @@ async def process_report(report, crawler_service, llm_service, db_service):
         summary_en_task = llm_service.generate_content_async(prompt_en)
         
         summary_ko, summary_en = await asyncio.gather(summary_ko_task, summary_en_task)
+
+        # check for errors
+        if not summary_ko or not summary_en:
+            logger.error(f"❌ Summary generation failed for {title}")
+            email_service.send_admin_alert(
+                f"[QuantLab Error] Summary Generation Failed: {title}",
+                f"Link: {link}\n\nKR: {summary_ko}\nEN: {summary_en}"
+            )
+            return None
 
         # 3. Save to DB
         report_data = {
@@ -77,7 +86,7 @@ async def main():
     # Process reports one by one to avoid passing API rate limits (Free Tier)
     results = []
     for report in searched_reports:
-        res = await process_report(report, crawler_service, llm_service, db_service)
+        res = await process_report(report, crawler_service, llm_service, db_service, email_service)
         results.append(res)
         # Optional: slight delay between reports to be extra safe
         # await asyncio.sleep(1)
@@ -106,6 +115,15 @@ async def main():
     
     final_ko, final_en = await asyncio.gather(final_ko_task, final_en_task)
     
+    # Check for synthesis errors
+    if not final_ko or not final_en:
+        logger.error("❌ Synthesis generation failed.")
+        email_service.send_admin_alert(
+            f"[QuantLab Error] Synthesis Failed ({today_kst_str})",
+            f"KR: {final_ko}\n\nEN: {final_en}"
+        )
+        return
+
     # Save Daily Report
     daily_report_data = {
         "title": f"Global Market Synthesis ({today_kst_str})",
