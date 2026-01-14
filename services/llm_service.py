@@ -46,8 +46,7 @@ class LLMService:
         try:
             response = self.model.generate_content(prompt)
             return response.text
-        except Exception as e:
-            logger.error(f"LLM generation failed: {e}")
+
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
             return None
