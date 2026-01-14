@@ -18,7 +18,7 @@ async def process_report(report, crawler_service, llm_service, db_service):
     """Downloads, extracts, summarizes, and saves a single report."""
     title = report['title']
     link = report['link']
-    
+        
     logger.info(f"Processing: {title}...")
     
     # 1. Extract Text
@@ -73,12 +73,14 @@ async def main():
         logger.info("No reports found.")
         return
 
-    # 2. Process Reports (Parallel)
-    tasks = [
-        process_report(report, crawler_service, llm_service, db_service) 
-        for report in searched_reports
-    ]
-    results = await asyncio.gather(*tasks)
+    # 2. Process Reports (Sequential)
+    # Process reports one by one to avoid passing API rate limits (Free Tier)
+    results = []
+    for report in searched_reports:
+        res = await process_report(report, crawler_service, llm_service, db_service)
+        results.append(res)
+        # Optional: slight delay between reports to be extra safe
+        # await asyncio.sleep(1)
     
     # Filter successful results
     processed_summaries = [res for res in results if res is not None]

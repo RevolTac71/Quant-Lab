@@ -15,7 +15,7 @@ class LLMService:
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel('gemini-2.5-flash')
 
-    async def generate_content_async(self, prompt, retries=3):
+    async def generate_content_async(self, prompt, retries=5):
         """Generates content asynchronously with simple retry logic."""
         for attempt in range(retries):
             try:
@@ -28,10 +28,11 @@ class LLMService:
                 
                 return response.text
             except Exception as e:
-                logger.warning(f"LLM generation failed (Attempt {attempt+1}/{retries}): {e}")
+                wait_time = 2 * (2 ** attempt)  # 2, 4, 8, 16, 32 seconds
+                logger.warning(f"LLM generation failed (Attempt {attempt+1}/{retries}): {e}. Retrying in {wait_time}s...")
                 if attempt == retries - 1:
                     return f"Error: {e}"
-                await asyncio.sleep(2 ** attempt) # Exponential backoff
+                await asyncio.sleep(wait_time)
 
     def generate_content(self, prompt):
         """Synchronous wrapper for compatibility if needed."""
