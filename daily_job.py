@@ -14,13 +14,14 @@ logger = setup_logger(__name__)
 # KST Timezone
 KST = timezone(timedelta(hours=9))
 
-async def process_report(report, crawler_service, llm_service, db_service, email_service):
+
+async def process_report(report, crawler_service, llm_service, db_service):
     """Downloads, extracts, summarizes, and saves a single report."""
-    title = report['title']
-    link = report['link']
-        
+    title = report["title"]
+    link = report["link"]
+
     logger.info(f"Processing: {title}...")
-    
+
     # 1. Extract Text
     text = await crawler_service.extract_text_from_url(link)
     if not text:
@@ -34,16 +35,12 @@ async def process_report(report, crawler_service, llm_service, db_service, email
 
         summary_ko_task = llm_service.generate_content_async(prompt_ko)
         summary_en_task = llm_service.generate_content_async(prompt_en)
-        
+
         summary_ko, summary_en = await asyncio.gather(summary_ko_task, summary_en_task)
 
         # check for errors
         if not summary_ko or not summary_en:
             logger.error(f"❌ Summary generation failed for {title}")
-            email_service.send_admin_alert(
-                f"[QuantLab Error] Summary Generation Failed: {title}",
-                f"Link: {link}\n\nKR: {summary_ko}\nEN: {summary_en}"
-            )
             return None
 
         # 3. Save to DB
@@ -51,15 +48,16 @@ async def process_report(report, crawler_service, llm_service, db_service, email
             "title": title,
             "link": link,
             "summary_ko": summary_ko,
-            "summary_en": summary_en
+            "summary_en": summary_en,
         }
         db_service.save_individual_report(report_data)
-        
+
         return report_data
-        
+
     except Exception as e:
         logger.error(f"Error processing {title}: {e}")
         return None
+
 
 async def main():
     logger.info("🚀 QuantLab Daily Job Started (Async)...")
@@ -74,10 +72,9 @@ async def main():
 
     # 1. Search Reports
     searched_reports = search_service.search_pdf_reports(
-        settings.SEARCH_KEYWORD, 
-        settings.TARGET_SITES
+        settings.SEARCH_KEYWORD, settings.TARGET_SITES
     )
-    
+
     if not searched_reports:
         logger.info("No reports found.")
         return
@@ -85,12 +82,29 @@ async def main():
     # 2. Process Reports (Sequential)
     # Process reports one by one to avoid passing API rate limits (Free Tier)
     results = []
+    failed_reports = []
+
     for report in searched_reports:
-        res = await process_report(report, crawler_service, llm_service, db_service, email_service)
-        results.append(res)
+        res = await process_report(report, crawler_service, llm_service, db_service)
+        if res is None:
+            failed_reports.append(report)
+        else:
+            results.append(res)
         # Optional: slight delay between reports to be extra safe
         # await asyncio.sleep(1)
-    
+
+    # Send consolidated admin alert if there are failures
+    if failed_reports:
+        logger.warning(f"⚠️ {len(failed_reports)} reports failed to process.")
+        error_body = "The following reports failed to process (skipped):\n\n"
+        for fail in failed_reports:
+            error_body += f"❌ {fail['title']}\n🔗 {fail['link']}\n\n"
+
+        email_service.send_admin_alert(
+            f"[QuantLab Warning] {len(failed_reports)} Reports Failed to Process",
+            error_body,
+        )
+
     # Filter successful results
     processed_summaries = [res for res in results if res is not None]
 
@@ -100,27 +114,32 @@ async def main():
 
     # 3. Synthesis & Email
     logger.info(f"🤖 Synthesizing {len(processed_summaries)} reports...")
-    
-    all_text_en = "\n\n".join([f"Title: {s['title']}\nSummary: {s['summary_en']}" for s in processed_summaries])
-    
-    today_kst_str = datetime.now(KST).strftime('%Y-%m-%d')
-    today_kst_md = datetime.now(KST).strftime('%m/%d')
-    
+
+    all_text_en = "\n\n".join(
+        [
+            f"Title: {s['title']}\nSummary: {s['summary_en']}"
+            for s in processed_summaries
+        ]
+    )
+
+    today_kst_str = datetime.now(KST).strftime("%Y-%m-%d")
+    today_kst_md = datetime.now(KST).strftime("%m/%d")
+
     # Generate Synthesis (Parallel)
     prompt_syn_ko = prompts.get_synthesis_prompt_ko(all_text_en, today_kst_str)
     prompt_syn_en = prompts.get_synthesis_prompt_en(all_text_en, today_kst_str)
-    
+
     final_ko_task = llm_service.generate_content_async(prompt_syn_ko)
     final_en_task = llm_service.generate_content_async(prompt_syn_en)
-    
+
     final_ko, final_en = await asyncio.gather(final_ko_task, final_en_task)
-    
+
     # Check for synthesis errors
     if not final_ko or not final_en:
         logger.error("❌ Synthesis generation failed.")
         email_service.send_admin_alert(
             f"[QuantLab Error] Synthesis Failed ({today_kst_str})",
-            f"KR: {final_ko}\n\nEN: {final_en}"
+            f"KR: {final_ko}\n\nEN: {final_en}",
         )
         return
 
@@ -128,44 +147,51 @@ async def main():
     daily_report_data = {
         "title": f"Global Market Synthesis ({today_kst_str})",
         "summary_ko": final_ko,
-        "summary_en": final_en
+        "summary_en": final_en,
     }
     db_service.save_daily_report(daily_report_data)
-    
+
     # 4. Send Emails
-    def build_mail_body(synthesis, summaries, lang='ko'):
+    def build_mail_body(synthesis, summaries, lang="ko"):
         body = f"{synthesis}\n\n"
         body += "=" * 40 + "\n\n"
-        
-        if lang == 'ko':
+
+        if lang == "ko":
             body += "📚 [참고한 개별 리포트 원문 요약]\n\n"
-            key = 'summary_ko'
+            key = "summary_ko"
         else:
             body += "📚 [Individual Report Summaries]\n\n"
-            key = 'summary_en'
+            key = "summary_en"
 
         for item in summaries:
             body += f"📌 {item['title']}\n"
             body += f"🔗 {item['link']}\n"
-            body += f"{item[key]}\n" 
+            body += f"{item[key]}\n"
             body += "-" * 20 + "\n"
-        
+
         return body
 
     # Fetch subscribers
-    korean_users = db_service.get_subscribers('ko')
-    english_users = db_service.get_subscribers('en')
-    
+    korean_users = db_service.get_subscribers("ko")
+    english_users = db_service.get_subscribers("en")
+
     if korean_users:
-        body_ko = build_mail_body(final_ko, processed_summaries, 'ko')
-        email_service.send_email_batch(f"[QuantLab] 오늘의 글로벌 마켓 브리핑 ({today_kst_md})", body_ko, korean_users)
-        
+        body_ko = build_mail_body(final_ko, processed_summaries, "ko")
+        email_service.send_email_batch(
+            f"[QuantLab] 오늘의 글로벌 마켓 브리핑 ({today_kst_md})",
+            body_ko,
+            korean_users,
+        )
+
     if english_users:
-        body_en = build_mail_body(final_en, processed_summaries, 'en')
-        email_service.send_email_batch(f"[QuantLab] Daily Market Brief ({today_kst_md})", body_en, english_users)
+        body_en = build_mail_body(final_en, processed_summaries, "en")
+        email_service.send_email_batch(
+            f"[QuantLab] Daily Market Brief ({today_kst_md})", body_en, english_users
+        )
 
     elapsed_time = time.time() - start_time
     logger.info(f"✅ Daily Job Completed in {elapsed_time:.2f} seconds.")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
