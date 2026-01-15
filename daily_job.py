@@ -135,19 +135,25 @@ async def main():
     final_ko, final_en = await asyncio.gather(final_ko_task, final_en_task)
 
     # Check for synthesis errors
-    if not final_ko or not final_en:
-        logger.error("❌ Synthesis generation failed.")
+    if not final_ko and not final_en:
+        logger.error("❌ Synthesis generation failed (BOTH).")
         email_service.send_admin_alert(
             f"[QuantLab Error] Synthesis Failed ({today_kst_str})",
-            f"KR: {final_ko}\n\nEN: {final_en}",
+            "Both KO and EN synthesis failed.",
         )
         return
+
+    # If partial failure, log it
+    if not final_ko:
+        logger.warning("⚠️ Synthesis generation failed for KO.")
+    if not final_en:
+        logger.warning("⚠️ Synthesis generation failed for EN.")
 
     # Save Daily Report
     daily_report_data = {
         "title": f"Global Market Synthesis ({today_kst_str})",
-        "summary_ko": final_ko,
-        "summary_en": final_en,
+        "summary_ko": final_ko if final_ko else "",
+        "summary_en": final_en if final_en else "",
     }
     db_service.save_daily_report(daily_report_data)
 
@@ -175,7 +181,7 @@ async def main():
     korean_users = db_service.get_subscribers("ko")
     english_users = db_service.get_subscribers("en")
 
-    if korean_users:
+    if korean_users and final_ko:
         body_ko = build_mail_body(final_ko, processed_summaries, "ko")
         email_service.send_email_batch(
             f"[QuantLab] 오늘의 글로벌 마켓 브리핑 ({today_kst_md})",
@@ -183,7 +189,7 @@ async def main():
             korean_users,
         )
 
-    if english_users:
+    if english_users and final_en:
         body_en = build_mail_body(final_en, processed_summaries, "en")
         email_service.send_email_batch(
             f"[QuantLab] Daily Market Brief ({today_kst_md})", body_en, english_users
