@@ -5,6 +5,7 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+
 class DBService:
     def __init__(self):
         try:
@@ -16,11 +17,13 @@ class DBService:
     def get_subscribers(self, lang_code=None):
         """Fetch active subscribers, optionally filtered by language."""
         try:
-            query = self.client.table("subscribers").select("email").eq("is_active", True)
+            query = (
+                self.client.table("subscribers").select("email").eq("is_active", True)
+            )
             if lang_code:
                 query = query.eq("language", lang_code)
             response = query.execute()
-            return [row['email'] for row in response.data]
+            return [row["email"] for row in response.data]
         except Exception as e:
             logger.error(f"Failed to fetch subscribers: {e}")
             return []
@@ -44,25 +47,24 @@ class DBService:
     def log_subscription_action(self, email, action_type):
         """Log subscription actions (subscribe/unsubscribe)."""
         try:
-            self.client.table("subscription_logs").insert({
-                "email": email,
-                "action_type": action_type
-            }).execute()
+            self.client.table("subscription_logs").insert(
+                {"email": email, "action_type": action_type}
+            ).execute()
         except Exception as e:
             logger.error(f"Failed to log action for {email}: {e}")
 
-    def subscribe_user(self, email, language='ko'):
+    def subscribe_user(self, email, language="ko"):
         """Subscribe a new user."""
         try:
             current_date = datetime.now().strftime("%Y-%m-%d")
             data = {
-                "email": email, 
-                "is_active": True, 
+                "email": email,
+                "is_active": True,
                 "language": language,
-                "start_date": current_date, 
+                "start_date": current_date,
             }
-            self.client.table("subscribers").upsert(data, on_conflict='email').execute()
-            self.log_subscription_action(email, 'SUBSCRIBE')
+            self.client.table("subscribers").upsert(data, on_conflict="email").execute()
+            self.log_subscription_action(email, "SUBSCRIBE")
             return "success"
         except Exception as e:
             logger.error(f"Subscribe failed for {email}: {e}")
@@ -71,27 +73,53 @@ class DBService:
     def unsubscribe_user(self, email):
         """Unsubscribe a user."""
         try:
-            check = self.client.table("subscribers").select("*").eq("email", email).execute()
+            check = (
+                self.client.table("subscribers")
+                .select("*")
+                .eq("email", email)
+                .execute()
+            )
             if not check.data:
                 return "not_found"
 
             current_date = datetime.now().strftime("%Y-%m-%d")
-            self.client.table("subscribers").update({
-                "is_active": False,
-                "end_date": current_date
-            }).eq("email", email).execute()
-            
-            self.log_subscription_action(email, 'UNSUBSCRIBE')
+            self.client.table("subscribers").update(
+                {"is_active": False, "end_date": current_date}
+            ).eq("email", email).execute()
+
+            self.log_subscription_action(email, "UNSUBSCRIBE")
             return "success"
         except Exception as e:
             logger.error(f"Unsubscribe failed for {email}: {e}")
             return str(e)
-            
+
     def get_latest_daily_report(self):
         """Get the latest daily report."""
         try:
-            response = self.client.table("daily_reports").select("*").order("created_at", desc=True).limit(1).execute()
+            response = (
+                self.client.table("daily_reports")
+                .select("*")
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
             return response.data[0] if response.data else None
         except Exception as e:
             logger.error(f"Failed to fetch latest report: {e}")
             return None
+
+    def save_log(self, level, message, module=None, metadata=None):
+        """Save a system log entry to the database."""
+        try:
+            data = {
+                "level": level,
+                "message": message,
+                "module": module,
+                "metadata": metadata,
+            }
+            # Fire and forget - do not wait for result to avoid blocking main thread too much
+            # or just simple execute. Ideally we run this async but this is sync method.
+            self.client.table("system_logs").insert(data).execute()
+        except Exception as e:
+            # Fallback to console print if DB logging fails, to avoid infinite recursion
+            print(f"FAILED TO SAVE LOG TO DB: {e}")

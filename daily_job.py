@@ -7,7 +7,7 @@ from services.crawler_service import CrawlerService
 from services.llm_service import LLMService
 from services.db_service import DBService
 from services.email_service import EmailService
-from utils.logger import setup_logger
+from utils.logger import setup_logger, DBLogHandler
 
 logger = setup_logger(__name__)
 
@@ -29,14 +29,12 @@ async def process_report(report, crawler_service, llm_service, db_service):
         return None
 
     try:
-        # 2. Summarize (Korean & English) - Run in parallel
+        # 2. Summarize (Korean & English) - Run sequentially to avoid rate limits
         prompt_ko = prompts.SUMMARY_PROMPT_KO.format(text=text)
         prompt_en = prompts.SUMMARY_PROMPT_EN.format(text=text)
 
-        summary_ko_task = llm_service.generate_content_async(prompt_ko)
-        summary_en_task = llm_service.generate_content_async(prompt_en)
-
-        summary_ko, summary_en = await asyncio.gather(summary_ko_task, summary_en_task)
+        summary_ko = await llm_service.generate_content_async(prompt_ko)
+        summary_en = await llm_service.generate_content_async(prompt_en)
 
         # check for errors
         if not summary_ko or not summary_en:
@@ -69,6 +67,11 @@ async def main():
     llm_service = LLMService()
     db_service = DBService()
     email_service = EmailService()
+
+    # Attach DB Log Handler
+    db_handler = DBLogHandler(db_service)
+    logger.addHandler(db_handler)
+    logger.info("✅ DB Logging Enabled.")
 
     # 1. Search Reports
     searched_reports = search_service.search_pdf_reports(
@@ -125,14 +128,12 @@ async def main():
     today_kst_str = datetime.now(KST).strftime("%Y-%m-%d")
     today_kst_md = datetime.now(KST).strftime("%m/%d")
 
-    # Generate Synthesis (Parallel)
+    # Generate Synthesis (Sequential)
     prompt_syn_ko = prompts.get_synthesis_prompt_ko(all_text_en, today_kst_str)
     prompt_syn_en = prompts.get_synthesis_prompt_en(all_text_en, today_kst_str)
 
-    final_ko_task = llm_service.generate_content_async(prompt_syn_ko)
-    final_en_task = llm_service.generate_content_async(prompt_syn_en)
-
-    final_ko, final_en = await asyncio.gather(final_ko_task, final_en_task)
+    final_ko = await llm_service.generate_content_async(prompt_syn_ko)
+    final_en = await llm_service.generate_content_async(prompt_syn_en)
 
     # Check for synthesis errors
     if not final_ko and not final_en:
@@ -143,11 +144,22 @@ async def main():
         )
         return
 
-    # If partial failure, log it
+    # If partial failure, log it and alert admin
+    partial_fail_msg = []
     if not final_ko:
-        logger.warning("⚠️ Synthesis generation failed for KO.")
+        msg = "⚠️ Synthesis generation failed for KO."
+        logger.warning(msg)
+        partial_fail_msg.append(msg)
     if not final_en:
-        logger.warning("⚠️ Synthesis generation failed for EN.")
+        msg = "⚠️ Synthesis generation failed for EN."
+        logger.warning(msg)
+        partial_fail_msg.append(msg)
+
+    if partial_fail_msg:
+        email_service.send_admin_alert(
+            f"[QuantLab Warning] Partial Synthesis Failed ({today_kst_str})",
+            "\n".join(partial_fail_msg),
+        )
 
     # Save Daily Report
     daily_report_data = {
