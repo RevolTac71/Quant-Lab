@@ -29,17 +29,21 @@ async def process_report(report, crawler_service, llm_service, db_service):
         return None
 
     try:
-        # 2. Summarize (Korean & English) - Run sequentially to avoid rate limits
-        prompt_ko = prompts.SUMMARY_PROMPT_KO.format(text=text)
+        # 2. Summarize (English)
         prompt_en = prompts.SUMMARY_PROMPT_EN.format(text=text)
-
-        summary_ko = await llm_service.generate_content_async(prompt_ko)
         summary_en = await llm_service.generate_content_async(prompt_en)
 
-        # check for errors
-        if not summary_ko or not summary_en:
+        if not summary_en:
             logger.error(f"❌ Summary generation failed for {title}")
             return None
+
+        # 3. Translate to Korean
+        prompt_trans = prompts.TRANSLATION_PROMPT_KO.format(text=summary_en)
+        summary_ko = await llm_service.generate_content_async(prompt_trans)
+
+        if not summary_ko:
+            logger.warning(f"⚠️ Translation failed for {title}. Saving EN only.")
+            summary_ko = ""
 
         # 3. Save to DB
         report_data = {
@@ -129,11 +133,18 @@ async def main():
     today_kst_md = datetime.now(KST).strftime("%m/%d")
 
     # Generate Synthesis (Sequential)
-    prompt_syn_ko = prompts.get_synthesis_prompt_ko(all_text_en, today_kst_str)
+    # 1. Generate English Version FIRST
     prompt_syn_en = prompts.get_synthesis_prompt_en(all_text_en, today_kst_str)
-
-    final_ko = await llm_service.generate_content_async(prompt_syn_ko)
     final_en = await llm_service.generate_content_async(prompt_syn_en)
+
+    if final_en:
+        # 2. Translate to Korean if EN succeeded
+        logger.info("🇺🇸 English Synthesis Complete. Translating to Korean...")
+        prompt_trans = prompts.TRANSLATION_PROMPT_KO.format(text=final_en)
+        final_ko = await llm_service.generate_content_async(prompt_trans)
+    else:
+        logger.error("❌ English Synthesis Failed. Skipping Korean Translation.")
+        final_ko = None
 
     # Check for synthesis errors
     if not final_ko and not final_en:

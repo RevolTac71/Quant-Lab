@@ -26,7 +26,7 @@ class SearchService:
             'cx': self.cx,
             'q': final_query,
             'num': num_results,
-            'dateRestrict': 'w2' # Last 2 weeks
+            'dateRestrict': 'w1' # Last 1 weeks
         }
         
         try:
