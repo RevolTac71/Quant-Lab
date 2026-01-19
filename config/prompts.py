@@ -101,7 +101,7 @@ Task: Translate the following English financial report content into Korean.
 {text}
 
 [Constraints]:
-1. **Format/Markdown**: You MUST preserve the exact markdown structure (headers, bullets, tables). Do NOT change the layout.
+1. **Format/Markdown**: You MUST preserve the exact markdown structure (headers, bullets, tables). Do NOT change the layout. Especially, make sure the horizontal rule `---` before "Deep Dive Analysis" is preserved.
 2. **Tickers**: Keep all Tickers (e.g., $NVDA) in English.
 3. **Tone**: Use a professional, financial tone suitable for a hedge fund CIO (Korean).
 4. **Term Mappings**:
@@ -119,5 +119,6 @@ Task: Translate the following English financial report content into Korean.
    - "Sector Rotation" -> "섹터 로테이션"
    - "Risk Radar" -> "리스크 레이더"
    - "Top Picks" -> "오늘의 Top Picks"
+   - "Deep Dive Analysis" -> "심층 마켓 분석"
 5. **No Explanations**: Output ONLY the translated report. No preamble.
 """
