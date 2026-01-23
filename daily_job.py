@@ -98,7 +98,7 @@ async def main():
         else:
             results.append(res)
         # Optional: slight delay between reports to be extra safe
-        # await asyncio.sleep(1)
+        await asyncio.sleep(15)
 
     # Send consolidated admin alert if there are failures
     if failed_reports:

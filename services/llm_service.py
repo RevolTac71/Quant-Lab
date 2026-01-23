@@ -14,7 +14,7 @@ class LLMService:
             raise ValueError("Gemini API Key is missing.")
 
         genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel("gemini-2.5-flash")
+        self.model = genai.GenerativeModel("gemini-3-flash")
 
     async def generate_content_async(self, prompt, retries=1):
         """Generates content asynchronously with simple retry logic."""
