@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 import asyncio
 from config import settings
 from utils.logger import setup_logger
@@ -13,40 +13,44 @@ class LLMService:
             logger.error("Gemini API Key is missing.")
             raise ValueError("Gemini API Key is missing.")
 
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel("gemini-3-flash")
+        self.client = genai.Client(api_key=self.api_key)
+        self.model_name = "gemini-3-flash"
 
-    async def generate_content_async(self, prompt, retries=1):
-        """Generates content asynchronously with simple retry logic."""
+    async def generate_content_async(self, prompt, retries=2):
+        """Generates content asynchronously with retry logic using asyncio.to_thread."""
         for attempt in range(retries + 1):
             try:
-                # Use generate_content_async if available (recent SDKs)
-                # If not, wrap synchronous call
-                if hasattr(self.model, "generate_content_async"):
-                    response = await self.model.generate_content_async(prompt)
-                else:
-                    response = await asyncio.to_thread(
-                        self.model.generate_content, prompt
-                    )
+                response = await asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model=self.model_name,
+                    contents=prompt,
+                )
 
-                return response.text
+                if response and response.text:
+                    return response.text
+                return None
+
             except Exception as e:
+                msg = str(e)
                 if attempt == retries:
-                    logger.error(f"LLM generation failed after {retries} retries: {e}")
+                    logger.error(
+                        f"LLM generation failed after {retries} retries: {msg}"
+                    )
                     return None
 
                 wait_time = 30  # Fixed 30 seconds delay
                 logger.warning(
-                    f"LLM generation failed (Attempt {attempt + 1}/{retries + 1}): {e}. Retrying in {wait_time}s..."
+                    f"LLM generation failed (Attempt {attempt + 1}/{retries + 1}): {msg}. Retrying in {wait_time}s..."
                 )
                 await asyncio.sleep(wait_time)
 
     def generate_content(self, prompt):
-        """Synchronous wrapper for compatibility if needed."""
+        """Synchronous wrapper."""
         try:
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=self.model_name, contents=prompt
+            )
             return response.text
-
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
             return None

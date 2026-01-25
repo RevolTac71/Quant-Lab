@@ -1,6 +1,6 @@
 streamlit
 supabase
-google-generativeai
+google-genai
 pypdf
 toml
 requests

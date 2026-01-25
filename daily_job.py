@@ -37,6 +37,9 @@ async def process_report(report, crawler_service, llm_service, db_service):
             logger.error(f"❌ Summary generation failed for {title}")
             return None
 
+        # Internal Delay to prevent burst (RPM protection)
+        await asyncio.sleep(10)
+
         # 3. Translate to Korean
         prompt_trans = prompts.TRANSLATION_PROMPT_KO.format(text=summary_en)
         summary_ko = await llm_service.generate_content_async(prompt_trans)
@@ -79,7 +82,7 @@ async def main():
 
     # 1. Search Reports
     searched_reports = search_service.search_pdf_reports(
-        settings.SEARCH_KEYWORD, settings.TARGET_SITES
+        settings.SEARCH_KEYWORD, settings.TARGET_SITES, num_results=7
     )
 
     if not searched_reports:
@@ -98,7 +101,7 @@ async def main():
         else:
             results.append(res)
         # Optional: slight delay between reports to be extra safe
-        await asyncio.sleep(15)
+        await asyncio.sleep(20)
 
     # Send consolidated admin alert if there are failures
     if failed_reports:
