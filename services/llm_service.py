@@ -13,8 +13,9 @@ class LLMService:
             logger.error("Gemini API Key is missing.")
             raise ValueError("Gemini API Key is missing.")
 
+        # New SDK Initialization
         self.client = genai.Client(api_key=self.api_key)
-        self.model_name = "gemini-3-flash"
+        self.model_name = "gemini-3-flash-preview"
 
     async def generate_content_async(self, prompt, retries=2):
         """Generates content asynchronously with retry logic using asyncio.to_thread."""
