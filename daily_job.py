@@ -37,16 +37,11 @@ async def process_report(report, crawler_service, llm_service, db_service):
             logger.error(f"❌ Summary generation failed for {title}")
             return None
 
-        # Internal Delay to prevent burst (RPM protection)
+        # Internal Delay (Still kept to keep pace slow and steady)
         await asyncio.sleep(10)
 
-        # 3. Translate to Korean
-        prompt_trans = prompts.TRANSLATION_PROMPT_KO.format(text=summary_en)
-        summary_ko = await llm_service.generate_content_async(prompt_trans)
-
-        if not summary_ko:
-            logger.warning(f"⚠️ Translation failed for {title}. Saving EN only.")
-            summary_ko = ""
+        # 3. Skip Translation (Save EN as KO placeholder or empty)
+        summary_ko = ""
 
         # 3. Save to DB
         report_data = {
@@ -82,7 +77,7 @@ async def main():
 
     # 1. Search Reports
     searched_reports = search_service.search_pdf_reports(
-        settings.SEARCH_KEYWORD, settings.TARGET_SITES, num_results=7
+        settings.SEARCH_KEYWORD, settings.TARGET_SITES, num_results=15
     )
 
     if not searched_reports:
@@ -187,20 +182,6 @@ async def main():
     def build_mail_body(synthesis, summaries, lang="ko"):
         body = f"{synthesis}\n\n"
         body += "=" * 40 + "\n\n"
-
-        if lang == "ko":
-            body += "📚 [참고한 개별 리포트 원문 요약]\n\n"
-            key = "summary_ko"
-        else:
-            body += "📚 [Individual Report Summaries]\n\n"
-            key = "summary_en"
-
-        for item in summaries:
-            body += f"📌 {item['title']}\n"
-            body += f"🔗 {item['link']}\n"
-            body += f"{item[key]}\n"
-            body += "-" * 20 + "\n"
-
         return body
 
     # Fetch subscribers
