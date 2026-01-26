@@ -50,10 +50,14 @@ class CrawlerService:
             text = ""
             # Limit to first 10 pages to avoid processing huge files
             for i in range(min(len(reader.pages), 10)):
-                page_text = reader.pages[i].extract_text()
-                if page_text:
-                    text += page_text
+                try:
+                    page_text = reader.pages[i].extract_text()
+                    if page_text:
+                        text += page_text
+                except Exception as e:
+                    logger.warning(f"Failed to extract text from page {i}: {e}")
+                    continue
             return text
         except Exception as e:
-            logger.error(f"PDF extraction failed: {e}")
+            logger.error(f"PDF extraction failed (Major): {e}")
             return None
